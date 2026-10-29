@@ -171,17 +171,17 @@ label{display:flex;flex-direction:column;gap:4px;font-weight:600;font-size:13px}
 
 /* Overlays */
 .ov{position:fixed;inset:0;z-index:50;background:color-mix(in srgb,var(--bg) 78%,transparent);backdrop-filter:blur(4px);overflow:auto;
-  padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+  padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 84px) max(16px,env(safe-area-inset-left,0px))}
 .sheet{max-width:1040px;margin:0 auto;background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:22px;display:flex;flex-direction:column;gap:16px}
 .sheet h2{font-family:var(--f-display);font-weight:400;font-size:clamp(30px,4vw,44px);text-transform:uppercase;line-height:1}
 .bigclock{font-family:var(--f-mono);font-size:clamp(44px,8vw,80px);font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
 .bigclock.over{color:var(--bad)}
 .trade{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 @media (max-width:700px){.trade{grid-template-columns:1fr}}
-.side{border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px;background:var(--bg)}
+.side{border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px;background:color-mix(in srgb,var(--bg) 30%,var(--surface))}
 .side .checks{display:flex;flex-direction:column;gap:4px;max-height:220px;overflow:auto}
 .side .checks label{flex-direction:row;align-items:center;gap:8px;font-weight:500}
-.confirm{display:flex;align-items:center;gap:8px;padding:10px;border-radius:10px;background:var(--sunk);font-weight:700}
+.confirm{display:flex;flex-direction:row;align-items:center;gap:8px;padding:10px;border-radius:10px;background:var(--sunk);font-weight:700}
 .confirm input{width:20px;height:20px;accent-color:var(--good)}
 .summary{padding:12px 14px;border-radius:10px;background:var(--brass-soft);font-weight:500}
 .wheel-wrap{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:22px;align-items:center}
@@ -705,6 +705,28 @@ function execTrade(){
   log("Intercambio", `Intercambio nº ${S.trades}: ${txt}. Confirmado por ${A.name} y ${B.name}.`);
   UI.T=newTrade(); UI.T.a=A.id; UI.T.b=B.id; render();
 }
+function sellPrice(f){ return f.mkt ?? f.value ?? 0; }
+function viewSell(){
+  const U=UI.sell=UI.sell||{pid:S.postores[0].id, fid:"", ok:false};
+  if (!P(U.pid)) U.pid=S.postores[0].id;
+  const p=P(U.pid); if (U.fid && !p.fichas.includes(U.fid)) { U.fid=""; U.ok=false; }
+  const f=U.fid?F(U.fid):null; const price=f?sellPrice(f):0;
+  return `<div class="side" style="gap:12px"><div><div class="eyebrow">Vender al mercado</div><p class="muted" style="margin:4px 0 0;font-size:13px">El postor recibe el precio de mercado de la ficha y la ficha vuelve al mercado para subastarse otra vez.</p></div>
+    <div class="row" style="align-items:flex-end">
+      <label style="flex:1 1 160px">Postor<select id="s-p" data-in="sp">${S.postores.map(x=>`<option value="${x.id}" ${x.id===U.pid?"selected":""}>${esc(x.name)} · ${fmt(x.cash)}</option>`).join("")}</select></label>
+      <label style="flex:2 1 220px">Ficha<select id="s-f" data-in="sf"><option value="">${p.fichas.length?"Elegir ficha…":"Sin fichas"}</option>${p.fichas.map(id=>{const x=F(id);return `<option value="${id}" ${id===U.fid?"selected":""}>${esc(x.name)} · ${x.mkt!=null?`mercado ${fmt(x.mkt)}`:`sin precio, pagó ${fmt(x.value||0)}`}</option>`}).join("")}</select></label>
+    </div>
+    ${f?`<div class="summary">${esc(p.name)} vende a ${esc(f.name)} y recibe <b class="mono">${fmt(price)}</b>${f.mkt==null?" (no tiene precio de mercado, se usa lo que se pagó en la subasta)":""}.</div>
+    <div class="row"><label class="confirm" style="flex:1 1 200px"><input type="checkbox" data-in="sok" ${U.ok?"checked":""}> ${esc(p.name)} confirma la venta</label><button class="brass big" data-act="sellF" ${U.ok?"":"disabled"}>Vender por ${fmt(price)}</button></div>`:""}</div>`;
+}
+function sellFicha(){
+  const U=UI.sell; if(!U?.ok || S.brk?.over) return; const p=P(U.pid), f=F(U.fid); if(!p||!f||!p.fichas.includes(f.id)) return;
+  const price=sellPrice(f); p.fichas=p.fichas.filter(x=>x!==f.id); p.cash+=price; f.owner=null; S.market.push(f.id);
+  const txt=`${p.name} vende a ${f.name} al mercado por ${fmt(price)}; vuelve al mercado`;
+  S.brk.done.push(txt); log("Venta al mercado", txt+".");
+  if (UI.T){ UI.T.aF=UI.T.aF.filter(x=>x!==f.id); UI.T.bF=UI.T.bF.filter(x=>x!==f.id); UI.T.aOK=UI.T.bOK=false; }
+  UI.sell={pid:p.id, fid:"", ok:false}; render();
+}
 function viewBreak(){
   const b=S.brk; if(!UI.T) UI.T=newTrade(); const T=UI.T; const A=P(T.a), B=P(T.b);
   const opts = sel => S.postores.map(p=>`<option value="${p.id}" ${p.id===sel?"selected":""}>${esc(p.name)}</option>`).join("");
@@ -714,11 +736,12 @@ function viewBreak(){
     <label>Entrega dinero<input id="t-${key}M" type="number" min="0" step="1" data-in="tm" data-keep="no" data-k="${key}" value="${m||""}" placeholder="0"></label>
     <label class="confirm"><input type="checkbox" data-in="tok" data-k="${key}" ${ok?"checked":""}> ${esc(P0.name)} confirma</label></div>`;
   const err = tradeError(T);
-  return `<div class="sheet"><div class="row"><div><div class="eyebrow">Descanso nº ${S.brkRound} · tras la venta ${S.sales}</div><h2>Intercambios</h2></div><span class="spacer"></span><div class="bigclock ${b.over?"over":""}" id="brkClock">${b.over?"0:00":""}</div></div>
+  return `<div class="sheet"><div class="row"><div><div class="eyebrow">Descanso nº ${S.brkRound} · tras la venta ${S.sales}</div><h2>Intercambios</h2></div><span class="spacer"></span><div class="bigclock ${b.over?"over":""}" id="brkClock">${(()=>{ const r=b.over?0:Math.max(0,Math.ceil((b.paused?b.remaining:b.deadline-now())/1000)); return `${Math.floor(r/60)}:${String(r%60).padStart(2,"0")}`; })()}</div></div>
     ${b.over?`<div class="result">Se acabó el tiempo. Ya no se pueden cerrar más intercambios.</div>`:`<p class="muted" style="margin:0">La casa de subasta arma el trato. Los dos postores deben confirmar antes de ejecutarlo. Cambiar algo borra las confirmaciones.</p>`}
     ${b.over?"":`<div class="trade">${side("a",A,T.aF,T.aM,T.aOK)}${side("b",B,T.bF,T.bM,T.bOK)}</div>
     <div class="summary">${esc(tradeSummary(T))}.</div>
     <div class="row"><span class="err">${esc(err || (!T.aOK||!T.bOK?"Faltan las confirmaciones de ambos postores.":""))}</span><span class="spacer"></span><button class="primary big" data-act="execTrade" ${err||!T.aOK||!T.bOK?"disabled":""}>Ejecutar intercambio</button></div>`}
+    ${b.over?"":viewSell()}
     ${b.done.length?`<div><div class="eyebrow">Hechos en este descanso</div><ol style="margin:6px 0 0;padding-left:20px">${b.done.map(t=>`<li>${esc(t)}</li>`).join("")}</ol></div>`:""}
     <div class="row"><button data-act="brkPause" ${b.over?"disabled":""}>${b.paused?"Reanudar reloj":"Pausar reloj"}</button><span class="spacer"></span><button class="brass big" data-act="endBreak">Volver a la subasta →</button></div></div>`;
 }
@@ -926,8 +949,8 @@ const ACT = {
   addMarket:()=>{ const nm=$("#n-name"), ds=$("#n-desc"); const n=nm.value.trim(); if(!n){ nm.focus(); return; } addToMarket([{name:n, desc:ds.value.trim(), mkt:priceVal("#n-price")}]); nm.value=""; ds.value=""; if($("#n-price")) $("#n-price").value=""; render(); $("#n-name")?.focus(); },
   addMarketBulk:()=>{ const b=$("#n-bulk"); const list=b.value.split("\n").map(x=>x.trim()).filter(Boolean).map(parseLine); if(!list.length) return; addToMarket(list); b.value=""; render(); },
   spin, nextSpinner,
-  execTrade, brkPause:()=>{ const b=S.brk; if(b.paused){ b.paused=false; b.deadline=now()+b.remaining; } else { b.remaining=Math.max(0,b.deadline-now()); b.paused=true; } render(); },
-  endBreak:()=>{ S.brk=null; UI.T=null; finishEvent(); },
+  execTrade, sellF:sellFicha, brkPause:()=>{ const b=S.brk; if(b.paused){ b.paused=false; b.deadline=now()+b.remaining; } else { b.remaining=Math.max(0,b.deadline-now()); b.paused=true; } render(); },
+  endBreak:()=>{ S.brk=null; UI.T=null; UI.sell=null; finishEvent(); },
   openLog:()=>{ UI.logOpen=true; render(); }, closeLog:()=>{ UI.logOpen=false; render(); },
   copyLog:async()=>{ const t=logText(); try{ await navigator.clipboard.writeText(t); $("#logMsg").textContent="Registro copiado."; }catch(e){ $("#logMsg").textContent="No se pudo copiar automáticamente. Usa Descargar."; } },
   dlLog:async()=>{ const msg=$("#logMsg"); try{ const dl=await claude.use("downloads"); if(!dl) throw 0; await dl.save({filename:"registro-casa-de-subasta.txt", data:logText()}); msg.textContent="Registro descargado."; }catch(e){ if(!window.claude?.use){ try{ const url=URL.createObjectURL(new Blob([logText()],{type:"text/plain;charset=utf-8"})); const l=document.createElement("a"); l.href=url; l.download="registro-casa-de-subasta.txt"; document.body.appendChild(l); l.click(); l.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000); msg.textContent="Registro descargado."; return; }catch(_){} } msg.textContent="La descarga no está disponible aquí. Usa Copiar."; } },
@@ -985,6 +1008,9 @@ document.addEventListener("change", e=>{
   if (d.in==="sel"){ if(t.checked) S.selected.push(d.id); else S.selected=S.selected.filter(x=>x!==d.id); render(); }
   else if (d.in==="tp"){ const T=UI.T; T[d.k]=t.value; T[d.k+"F"]=[]; T.aOK=T.bOK=false; render(); }
   else if (d.in==="tf"){ const T=UI.T, k=d.k+"F"; T[k]=t.checked?[...T[k],d.id]:T[k].filter(x=>x!==d.id); T.aOK=T.bOK=false; render(); }
+  else if (d.in==="sp"){ UI.sell={pid:t.value, fid:"", ok:false}; render(); }
+  else if (d.in==="sf"){ UI.sell.fid=t.value; UI.sell.ok=false; render(); }
+  else if (d.in==="sok"){ UI.sell.ok=t.checked; render(); }
   else if (d.in==="tok"){ UI.T[d.k+"OK"]=t.checked; render(); }
   else if (d.in==="mkt"){ setMarket(d.id, t.value.trim()); UI.editMkt=null; render(); }
   else if (d.in==="vote"){ if(t.value) S.fin.votes[d.id]=t.value; else delete S.fin.votes[d.id]; render(); }
