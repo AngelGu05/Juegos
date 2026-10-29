@@ -451,7 +451,7 @@ function viewSetup(){
       <div class="pool-tools"><button class="sm" data-act="selAll">Todos</button><button class="sm" data-act="selCur">Solo actuales</button><button class="sm" data-act="selLeg">Solo leyendas</button><button class="sm" data-act="selNone">Ninguno</button><span class="spacer"></span><span class="chip brass">${S.selected.length} seleccionados</span></div>
       <div class="pool">${pool.map(f=>`<label><input type="checkbox" data-in="sel" data-id="${f.id}" ${sel.has(f.id)?"checked":""}><span><b>${esc(f.name)}</b> ${f.legend?'<span class="chip brass">Leyenda</span>':""}<small>${esc(f.pos)} · ${esc(f.team)} · ${esc(f.nat)} · ${f.h} m</small><small>${esc(f.tray)}</small></span></label>`).join("")}</div></div>`;
   } else if (S.step===2){
-    body = `<div class="panel" style="display:flex;flex-direction:column;gap:14px"><div><div class="eyebrow">Paso 2 · Libre</div><h2 class="display" style="font-size:30px;margin-top:4px">Escribe los personajes</h2></div>
+    body = `<div class="panel" style="display:flex;flex-direction:column;gap:14px"><div><div class="eyebrow">Paso 2 · Libre</div><h2 class="display" style="font-size:30px;margin-top:4px">Escribe los personajes</h2><p class="muted" style="margin:6px 0 0;max-width:70ch">Con unos pocos basta para empezar. Durante la partida puedes seguir añadiendo personajes al mercado cuando quieras.</p></div>
       <div class="row" style="align-items:flex-end"><label style="flex:1 1 200px">Nombre<input id="c-name" placeholder="Ej. Goku" data-keep="no"></label><label style="flex:2 1 260px">Descripción (opcional)<input id="c-desc" placeholder="Ej. Guerrero saiyajin" data-keep="no"></label><button class="primary" data-act="addCustom">Añadir</button></div>
       <details><summary class="muted" style="cursor:pointer">Pegar varios a la vez (uno por línea)</summary><div class="row" style="margin-top:8px;align-items:flex-end"><textarea id="c-bulk" rows="4" style="flex:1 1 300px" placeholder="Batman&#10;Superman&#10;Mujer Maravilla" data-keep="no"></textarea><button data-act="addBulk">Añadir lista</button></div></details>
       <div class="custom-list">${S.custom.length?S.custom.map((c,i)=>`<div><span class="mono muted">${i+1}</span><span><b>${esc(c.name)}</b>${c.desc?` <span class="muted">· ${esc(c.desc)}</span>`:""}</span><button class="sm ghost danger" data-act="delCustom" data-i="${i}">Quitar</button></div>`).join(""):`<p class="muted">Todavía no hay personajes. Añade al menos uno.</p>`}</div></div>`;
@@ -480,7 +480,7 @@ function viewGame(){
   const top = `<div class="top">${header(`${th.label} · ${S.postores.length} postores`)}
     <div class="counters"><div class="counter"><small>Ventas</small><b>${S.sales}</b></div><div class="counter"><small>Intercambios en</small><b>${untilNext(10)}</b></div><div class="counter"><small>Ruleta en</small><b>${untilNext(15)}</b></div><div class="counter"><small>En mercado</small><b>${S.market.length}</b></div></div>
     <div class="row"><button data-act="openLog">Registro (${S.log.length})</button>${UI.confirmEnd?`<span class="inline-confirm">¿Terminar el juego y pasar a la votación? <button class="sm danger" data-act="endGame">Sí, terminar</button><button class="sm" data-act="cancelEnd">Cancelar</button></span>`:`<button class="danger" data-act="askEnd" ${S.cur?.open?"disabled":""}>Terminar juego</button>`}</div></div>`;
-  return top + `<div class="board"><section class="stage">${viewStage()}</section><section class="bidders">${S.postores.map(viewPostor).join("")}</section></div>`;
+  return top + `<div class="board"><section class="stage">${viewStage()}${S.theme==="libre"?addBox():""}</section><section class="bidders">${S.postores.map(viewPostor).join("")}</section></div>`;
 }
 function fichaFacts(f){
   if (f.r==null) return f.desc?`<p class="tray" style="margin:0">${esc(f.desc)}</p>`:"";
@@ -509,7 +509,15 @@ function viewStage(){
   return `<div class="lotcard"><div class="eyebrow">Mercado</div><h2 class="display" style="font-size:32px">Elige la próxima ficha</h2>
     <div class="row"><button class="brass big" data-act="randomPick" ${S.market.length&&!blocked?"":"disabled"}>Ficha al azar</button><span class="muted">${S.market.length} en el mercado</span></div>
     <div class="market">${S.market.length?S.market.map(id=>{const f=F(id);return `<div class="mitem"><div><b>${esc(f.name)}</b> ${f.legend?'<span class="chip brass">Leyenda</span>':""}<small>${f.r!=null?`${esc(f.pos)} · ${esc(f.team)} · ${f.h} m`:esc(f.desc||"Personaje")}</small></div><button class="sm" data-act="pickF" data-id="${id}">Subastar</button></div>`}).join(""):`<p class="muted">El mercado está vacío. Añade más fichas o termina el juego.</p>`}</div>
-    <details><summary class="muted" style="cursor:pointer">Añadir una ficha nueva al mercado</summary><div class="row" style="margin-top:8px;align-items:flex-end"><label style="flex:1 1 160px">Nombre<input id="n-name" data-keep="no"></label><label style="flex:1 1 160px">Descripción<input id="n-desc" data-keep="no"></label><button data-act="addMarket">Añadir</button></div></details></div>`;
+    ${S.theme!=="libre"?`<details><summary class="muted" style="cursor:pointer">Añadir una ficha nueva al mercado</summary>${addFields()}</details>`:""}</div>`;
+}
+function addFields(){
+  return `<div class="row" style="margin-top:8px;align-items:flex-end"><label style="flex:1 1 160px">Nombre<input id="n-name" placeholder="${S.theme==="libre"?"Ej. Goku":""}"></label><label style="flex:1 1 160px">Descripción (opcional)<input id="n-desc"></label><button class="primary" data-act="addMarket">Añadir</button></div>
+    <details id="bulkBox" style="margin-top:8px" ${UI.bulkOpen?"open":""}><summary class="muted" style="cursor:pointer">Pegar varios a la vez (uno por línea)</summary><div class="row" style="margin-top:8px;align-items:flex-end"><textarea id="n-bulk" rows="3" style="flex:1 1 220px" placeholder="Batman&#10;Superman"></textarea><button data-act="addMarketBulk">Añadir lista</button></div></details>
+    <span class="muted" id="addMsg" style="font-size:13px">${esc(UI.addMsg||"")}</span>`;
+}
+function addBox(){
+  return `<div class="lotcard" style="gap:6px"><div class="eyebrow">Casa de subasta</div><h3 class="display" style="font-size:24px">Añadir personajes al mercado</h3><p class="muted" style="margin:0;font-size:13px">Puedes añadir en cualquier momento, incluso durante una subasta. Entran al final del mercado.</p>${addFields()}</div>`;
 }
 function contLabel(){ const e=S.pending[0]; return e==="ruleta"?"Continuar a la ruleta →":e==="break"?"Continuar a los intercambios →":"Siguiente ficha →"; }
 function teamList(p){
@@ -810,6 +818,11 @@ function autoAI(){
 }
 
 /* ---------- Acciones ---------- */
+function addToMarket(list){
+  list.forEach(c=>{ const id=uid("x"); S.fichas[id]={id, name:c.name, desc:c.desc, r:null, mkt:null, owner:null}; S.market.push(id); });
+  log("Mercado", list.length===1?`La casa añade a ${list[0].name} al mercado.`:`La casa añade ${list.length} fichas al mercado: ${list.map(c=>c.name).join(", ")}.`);
+  UI.addMsg = list.length===1?`Añadido: ${list[0].name}.`:`Añadidos ${list.length} personajes.`;
+}
 const ACT = {
   theme:d=>{ if(S.theme!==d.v){ S.theme=d.v; S.selected=poolFor(d.v).filter(f=>!f.legend).map(f=>f.id); } UI.err=""; render(); },
   selAll:()=>{ S.selected=poolFor(S.theme).map(f=>f.id); render(); },
@@ -832,7 +845,8 @@ const ACT = {
   hammer:()=>closeAuction(),
   cancelAuction:()=>{ S.market.unshift(S.cur.fid); log("Cancelada", `Se canceló la subasta de ${F(S.cur.fid).name}; vuelve al mercado.`); S.cur=null; render(); },
   continue:continueFlow,
-  addMarket:()=>{ const n=$("#n-name").value.trim(); if(!n) return; const id=uid("x"); S.fichas[id]={id, name:n, desc:$("#n-desc").value.trim(), r:null, mkt:null, owner:null}; S.market.push(id); log("Mercado", `La casa añade a ${n} al mercado.`); render(); },
+  addMarket:()=>{ const nm=$("#n-name"), ds=$("#n-desc"); const n=nm.value.trim(); if(!n){ nm.focus(); return; } addToMarket([{name:n, desc:ds.value.trim()}]); nm.value=""; ds.value=""; render(); $("#n-name")?.focus(); },
+  addMarketBulk:()=>{ const b=$("#n-bulk"); const list=b.value.split("\n").map(x=>x.trim()).filter(Boolean).map(name=>({name, desc:""})); if(!list.length) return; addToMarket(list); b.value=""; render(); },
   spin, nextSpinner,
   execTrade, brkPause:()=>{ const b=S.brk; if(b.paused){ b.paused=false; b.deadline=now()+b.remaining; } else { b.remaining=Math.max(0,b.deadline-now()); b.paused=true; } render(); },
   endBreak:()=>{ S.brk=null; UI.T=null; finishEvent(); },
@@ -875,8 +889,10 @@ document.addEventListener("keydown", e=>{
   if (e.key!=="Enter") return; const t=e.target;
   if (t.dataset?.enter==="bid"){ e.preventDefault(); placeBid(t.dataset.id); }
   else if (t.id==="c-name"||t.id==="c-desc"){ e.preventDefault(); ACT.addCustom(); }
+  else if (t.id==="n-name"||t.id==="n-desc"){ e.preventDefault(); ACT.addMarket(); }
   else if (t.dataset?.in==="pname"){ e.preventDefault(); ACT.addPostor(); }
 });
+document.addEventListener("toggle", e=>{ if(e.target.id==="bulkBox") UI.bulkOpen=e.target.open; }, true);
 document.addEventListener("input", e=>{
   const t=e.target, d=t.dataset; if(!d?.in) return;
   if (d.in==="pname"){ const p=P(d.id); if(p) p.name=t.value; save(); }
