@@ -132,8 +132,10 @@ label{display:flex;flex-direction:column;gap:4px;font-weight:600;font-size:13px}
 .pname{font-family:var(--f-display);font-size:26px;text-transform:uppercase;line-height:1}
 .pcash{font-family:var(--f-mono);font-weight:700;font-size:18px;color:var(--accent)}
 .bidbox{display:flex;gap:6px;margin-left:auto}
-.bidbox input{width:120px;font-family:var(--f-mono)}
-@media (max-width:520px){.bidbox{margin-left:0;width:100%}.bidbox input{flex:1;width:auto}}
+.bidbox input{width:110px;font-family:var(--f-mono)}
+.bidbox .up{white-space:nowrap;font-family:var(--f-mono);font-weight:700}
+.key{font-family:var(--f-mono);font-size:12px;font-weight:700;min-width:24px;height:24px;display:inline-grid;place-items:center;border:1px solid var(--line);border-bottom-width:3px;border-radius:6px;background:var(--sunk);color:var(--muted)}
+@media (max-width:520px){.bidbox{margin-left:0;width:100%;flex-wrap:wrap}.bidbox input{flex:1;width:auto}.bidbox .up{flex:1 1 100%}}
 .team{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;border-top:1px dashed var(--line)}
 .team li{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px 14px;align-items:baseline;padding:6px 0;border-bottom:1px dashed var(--line)}
 .team li .t-name{font-weight:600;overflow-wrap:anywhere}
@@ -507,7 +509,7 @@ function viewStage(){
   }
   if (S.cur){
     const f=F(S.cur.fid); const hb=S.cur.bids[S.cur.bids.length-1];
-    if (!S.cur.open) return `<div class="lotcard"><div class="eyebrow">Próxima ficha ${f.legend?'· <span class="chip brass">Leyenda</span>':""}</div><div class="name">${esc(f.name)}</div>${fichaFacts(f)}<div class="row"><button class="brass big" data-act="openAuction">Abrir subasta</button><button class="ghost" data-act="returnCur">Devolver al mercado</button></div><p class="muted" style="margin:0;font-size:13px">Al abrir hay ${S.firstSecs} s para la primera puja. Cada puja nueva reinicia ${S.bidSecs} s.</p></div>`;
+    if (!S.cur.open) return `<div class="lotcard"><div class="eyebrow">Próxima ficha ${f.legend?'· <span class="chip brass">Leyenda</span>':""}</div><div class="name">${esc(f.name)}</div>${fichaFacts(f)}<div class="row"><button class="brass big" data-act="openAuction">Abrir subasta</button><button class="ghost" data-act="returnCur">Devolver al mercado</button></div><p class="muted" style="margin:0;font-size:13px">Al abrir hay ${S.firstSecs} s para la primera puja. Cada puja nueva reinicia ${S.bidSecs} s. Para superar en $1, usa el botón dorado de cada postor o pulsa su número en el teclado.</p></div>`;
     return `<div class="lotcard"><div class="eyebrow">En subasta ${S.cur.paused?'· <span class="chip bad">Pausada</span>':""}</div><div class="name">${esc(f.name)}</div>${fichaFacts(f)}
       <div class="auction"><div class="clock" id="clock"><div id="clockN">–</div></div><div class="highbid"><small class="eyebrow">Puja más alta</small><div class="amt">${hb?fmt(hb.amt):"—"}</div><div class="who">${hb?esc(P(hb.pid).name):"Esperando la primera puja"}</div></div></div>
       <div class="row"><button data-act="pause">${S.cur.paused?"Reanudar":"Pausar"}</button><button class="brass" data-act="hammer" ${hb?"":"disabled"}>Adjudicar ya</button><button class="ghost danger" data-act="cancelAuction">Cancelar subasta</button></div>
@@ -538,8 +540,10 @@ function viewPostor(p){
   const open = S.cur?.open && !S.cur.paused; const hb=S.cur?.bids[S.cur.bids.length-1];
   const lead = hb && hb.pid===p.id;
   const tv = p.fichas.reduce((s,id)=>s+valueOf(F(id)),0);
-  return `<article class="prow ${lead?"lead":""}" id="row-${p.id}"><div class="phead"><span class="pname">${esc(p.name)}</span><span class="pcash">${fmt(p.cash)}</span>${lead?'<span class="chip brass">Va ganando</span>':""}
-    <div class="bidbox"><input id="bid-${p.id}" type="number" min="1" step="1" inputmode="numeric" placeholder="Cantidad" data-keep="${open?"":"no"}" ${open?"":"disabled"} data-enter="bid" data-id="${p.id}"><button class="primary" data-act="bid" data-id="${p.id}" ${open?"":"disabled"}>Pujar</button></div></div>
+  const next = (hb?hb.amt:0)+1; const canUp = open && !lead && p.cash>=next;
+  const idx = S.postores.indexOf(p);
+  return `<article class="prow ${lead?"lead":""}" id="row-${p.id}"><div class="phead">${idx<9?`<kbd class="key" title="Tecla ${idx+1}: superar la puja">${idx+1}</kbd>`:""}<span class="pname">${esc(p.name)}</span><span class="pcash">${fmt(p.cash)}</span>${lead?'<span class="chip brass">Va ganando</span>':""}
+    <div class="bidbox"><input id="bid-${p.id}" type="number" min="1" step="1" inputmode="numeric" placeholder="Cantidad" data-keep="${open?"":"no"}" ${open?"":"disabled"} data-enter="bid" data-id="${p.id}"><button class="primary" data-act="bid" data-id="${p.id}" ${open?"":"disabled"}>Pujar</button><button class="brass up" data-act="up" data-id="${p.id}" ${canUp?"":"disabled"} title="${lead?"Ya va ganando":p.cash<next?"No le alcanza el dinero":""}">${hb?`Superar → ${fmt(next)}`:`Pujar ${fmt(next)}`}</button></div></div>
     ${teamList(p)}<div class="pfoot"><span>${p.fichas.length} ${p.fichas.length===1?"ficha":"fichas"}</span><span>Valor de mercado del equipo: <b class="mono">${fmt(tv)}</b></span><span>Capital: <b class="mono">${fmt(tv+p.cash)}</b></span></div></article>`;
 }
 
@@ -549,16 +553,17 @@ function pickFicha(id){
   S.market = S.market.filter(x=>x!==id); S.cur={fid:id, bids:[], open:false, paused:false}; render();
 }
 function openAuction(){ S.cur.open=true; S.cur.paused=false; S.cur.deadline=now()+S.firstSecs*1000; render(); $("#bid-"+S.postores[0].id)?.focus(); }
-function placeBid(pid){
+function placeBid(pid, quick){
   const c=S.cur; if(!c?.open || c.paused) return;
-  const input=$("#bid-"+pid); const amt=Math.floor(Number(input?.value));
+  const input=$("#bid-"+pid); const hb0=c.bids[c.bids.length-1];
+  const amt = quick ? (hb0?hb0.amt:0)+1 : Math.floor(Number(input?.value));
   const p=P(pid); const hb=c.bids[c.bids.length-1];
-  const fail = m => { input.setCustomValidity(m); input.reportValidity(); setTimeout(()=>input.setCustomValidity(""),1500); };
+  const fail = m => { if(quick){ UI.flash=null; return; } input.setCustomValidity(m); input.reportValidity(); setTimeout(()=>input.setCustomValidity(""),1500); };
   if (!amt || amt<1) return fail("Escribe una cantidad mayor que 0.");
   if (hb && amt<=hb.amt) return fail(`Tiene que superar ${fmt(hb.amt)}.`);
   if (amt>p.cash) return fail(`${p.name} solo tiene ${fmt(p.cash)}.`);
   if (hb && hb.pid===pid) return fail(`${p.name} ya va ganando.`);
-  c.bids.push({pid, amt}); c.deadline=now()+S.bidSecs*1000; input.value=""; UI.flash=pid; render();
+  c.bids.push({pid, amt}); c.deadline=now()+S.bidSecs*1000; if(!quick) input.value=""; UI.flash=pid; render();
 }
 function closeAuction(){
   const c=S.cur; if(!c) return; const f=F(c.fid); const hb=c.bids[c.bids.length-1];
@@ -941,7 +946,7 @@ const ACT = {
   editMkt:d=>{ UI.editMkt=d.id; render(); const el=$("#mkt-"+d.id); el?.focus(); el?.select(); },
   randomPick:()=>{ if(S.market.length) pickFicha(pick(S.market)); },
   returnCur:()=>{ S.market.unshift(S.cur.fid); S.cur=null; render(); },
-  openAuction, bid:d=>placeBid(d.id),
+  openAuction, bid:d=>placeBid(d.id), up:d=>placeBid(d.id,true),
   pause:()=>{ const c=S.cur; if(c.paused){ c.paused=false; c.deadline=now()+c.remaining; } else { c.remaining=Math.max(0,c.deadline-now()); c.paused=true; } render(); },
   hammer:()=>closeAuction(),
   cancelAuction:()=>{ S.market.unshift(S.cur.fid); log("Cancelada", `Se canceló la subasta de ${F(S.cur.fid).name}; vuelve al mercado.`); S.cur=null; render(); },
@@ -988,6 +993,9 @@ function startGame(){
 document.addEventListener("click", e=>{ const b=e.target.closest("[data-act]"); if(!b || b.disabled) return; const f=ACT[b.dataset.act]; if(f) f(b.dataset, b); });
 document.addEventListener("keydown", e=>{
   const t=e.target;
+  if (/^[1-9]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey && !t.closest?.("input,textarea,select") && S.phase==="game" && S.cur?.open && !$("#ov").children.length){
+    const p=S.postores[Number(e.key)-1]; if(p){ e.preventDefault(); placeBid(p.id,true); } return;
+  }
   if (t.dataset?.in==="mkt"){ if(e.key==="Enter"){ e.preventDefault(); t.blur(); } else if(e.key==="Escape"){ UI.editMkt=null; render(); } return; }
   if (e.key!=="Enter") return;
   if (t.dataset?.enter==="bid"){ e.preventDefault(); placeBid(t.dataset.id); }
