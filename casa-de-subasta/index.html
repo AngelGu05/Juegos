@@ -11,11 +11,11 @@
 <style>
 /* Layout: sala de subastas en una sola pantalla. Escenario (ficha + martillo) a la izquierda, filas de postores a la derecha; en móvil se apilan. */
 :root{
-  --bg:#ECEEE8; --surface:#F8F9F4; --sunk:#E2E6DD; --ink:#13231B; --muted:#5A6A60; --line:#CDD5CA;
+  --bg:#AFC2B0; --surface:#F7F8F3; --sunk:#E3E8DE; --ink:#13231B; --muted:#46564C; --line:#B8C6B6;
   --accent:#1D5A43; --accent-ink:#F3F7F2; --brass:#B87A0B; --brass-soft:#F3E4C2; --good:#2B7A4B; --bad:#B23E2B;
   --w1:#2B7A4B; --w2:#B23E2B; --w3:#C46A1A; --w4:#6B3FA0; --s1:#1D5A43; --s2:#3E7F66;
   --shadow:0 1px 2px rgba(19,35,27,.08),0 8px 24px rgba(19,35,27,.08);
-  --glow1:rgba(184,122,11,.20); --glow2:rgba(29,90,67,.18); --deco:rgba(19,35,27,.05); --deco-field:rgba(29,90,67,.13); --beam:rgba(201,138,18,.13);
+  --glow1:rgba(214,150,30,.45); --glow2:rgba(20,70,50,.40); --deco:rgba(19,45,32,.10); --deco-field:rgba(245,250,240,.42); --beam:rgba(255,238,195,.40); --vignette:rgba(14,40,28,.38);
   --f-display:"Anton","Impact","Arial Narrow",sans-serif;
   --f-body:"Archivo",system-ui,-apple-system,"Segoe UI",sans-serif;
   --f-mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
@@ -24,12 +24,12 @@
   --bg:#0D1411; --surface:#151F1A; --sunk:#0A100D; --ink:#E6ECE5; --muted:#93A399; --line:#28362E;
   --accent:#5CC497; --accent-ink:#06140D; --brass:#E7AF3C; --brass-soft:#3A2C0E; --good:#5CC497; --bad:#EE7C63;
   --w1:#2F8A57; --w2:#B94733; --w3:#C7751F; --w4:#7A4DB5; --s1:#24664D; --s2:#3B8A6C;
-  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35); --glow1:rgba(231,175,60,.16); --glow2:rgba(92,196,151,.12); --deco:rgba(230,236,229,.05); --deco-field:rgba(92,196,151,.10); --beam:rgba(231,175,60,.09); color-scheme:dark}}
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35); --glow1:rgba(231,175,60,.16); --glow2:rgba(92,196,151,.12); --deco:rgba(230,236,229,.05); --deco-field:rgba(92,196,151,.10); --beam:rgba(231,175,60,.09); --vignette:rgba(0,0,0,.45); color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0D1411; --surface:#151F1A; --sunk:#0A100D; --ink:#E6ECE5; --muted:#93A399; --line:#28362E;
   --accent:#5CC497; --accent-ink:#06140D; --brass:#E7AF3C; --brass-soft:#3A2C0E; --good:#5CC497; --bad:#EE7C63;
   --w1:#2F8A57; --w2:#B94733; --w3:#C7751F; --w4:#7A4DB5; --s1:#24664D; --s2:#3B8A6C;
-  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35); --glow1:rgba(231,175,60,.16); --glow2:rgba(92,196,151,.12); --deco:rgba(230,236,229,.05); --deco-field:rgba(92,196,151,.10); --beam:rgba(231,175,60,.09); color-scheme:dark}
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35); --glow1:rgba(231,175,60,.16); --glow2:rgba(92,196,151,.12); --deco:rgba(230,236,229,.05); --deco-field:rgba(92,196,151,.10); --beam:rgba(231,175,60,.09); --vignette:rgba(0,0,0,.45); color-scheme:dark}
 *{box-sizing:border-box}
 html,body{min-height:100%}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45;
@@ -148,7 +148,7 @@ label{display:flex;flex-direction:column;gap:4px;font-weight:600;font-size:13px}
 
 /* Fondo decorado: focos, patrón de martillos y paletas, y la cancha según la temática */
 #bg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;
-  background:radial-gradient(55% 45% at 10% -8%,var(--glow1),transparent 70%),radial-gradient(50% 45% at 100% 108%,var(--glow2),transparent 70%),radial-gradient(40% 30% at 90% 0%,var(--glow2),transparent 70%)}
+  background:radial-gradient(ellipse at 50% 40%,transparent 45%,var(--vignette) 100%),radial-gradient(55% 45% at 10% -8%,var(--glow1),transparent 70%),radial-gradient(50% 45% at 100% 108%,var(--glow2),transparent 70%),radial-gradient(40% 30% at 90% 0%,var(--glow2),transparent 70%)}
 #bg .pat{position:absolute;inset:0;background:var(--deco);-webkit-mask-image:var(--pat);mask-image:var(--pat);-webkit-mask-size:190px;mask-size:190px;-webkit-mask-repeat:repeat;mask-repeat:repeat}
 #bg .field{position:absolute;inset:7% 3%;background:var(--deco-field);-webkit-mask-image:var(--field);mask-image:var(--field);-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center}
 #bg .beam{position:absolute;top:-20%;width:38vw;height:150%;background:linear-gradient(180deg,var(--beam),transparent 75%);clip-path:polygon(42% 0,58% 0,100% 100%,0 100%);transform-origin:50% 0;filter:blur(6px)}
@@ -915,10 +915,10 @@ const Music = (()=>{
     ctx = new (window.AudioContext||window.webkitAudioContext)();
     master = ctx.createGain(); master.gain.value=0; master.connect(ctx.destination);
     bus = ctx.createGain(); bus.connect(master);
-    const delay=ctx.createDelay(1); delay.delayTime.value=0.37; const fb=ctx.createGain(); fb.gain.value=0.38; const wet=ctx.createGain(); wet.gain.value=0.3;
+    const delay=ctx.createDelay(1); delay.delayTime.value=0.31; const fb=ctx.createGain(); fb.gain.value=0.25; const wet=ctx.createGain(); wet.gain.value=0.16;
     bus.connect(delay); delay.connect(fb); fb.connect(delay); delay.connect(wet); wet.connect(master);
     filt = ctx.createBiquadFilter(); filt.type="lowpass"; filt.frequency.value=320; filt.Q.value=7;
-    const dg=ctx.createGain(); dg.gain.value=0.12; filt.connect(dg); dg.connect(bus);
+    const dg=ctx.createGain(); dg.gain.value=0.06; filt.connect(dg); dg.connect(bus);
     [[73.42,"sawtooth"],[73.95,"sawtooth"],[110,"triangle"],[36.71,"sine"]].forEach(([f,t])=>{ const o=ctx.createOscillator(); o.type=t; o.frequency.value=f; o.connect(filt); o.start(); });
     const lfo=ctx.createOscillator(); lfo.frequency.value=0.06; const lg=ctx.createGain(); lg.gain.value=160; lfo.connect(lg); lg.connect(filt.frequency); lfo.start();
     noiseBuf = ctx.createBuffer(1, ctx.sampleRate*0.2, ctx.sampleRate); const d=noiseBuf.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
@@ -928,8 +928,11 @@ const Music = (()=>{
   function tick(t,l,hi){ const o=ctx.createOscillator(); o.type="square"; o.frequency.value=hi?2600:1700; const f=ctx.createBiquadFilter(); f.type="highpass"; f.frequency.value=1200; o.connect(f); f.connect(env(t,0.035,0.05*l)); o.start(t); o.stop(t+0.05); }
   function tone(t,fr,dur,l,type="triangle"){ const o=ctx.createOscillator(); o.type=type; o.frequency.value=fr; o.connect(env(t,dur,0.05*l)); o.start(t); o.stop(t+dur+0.05); }
   function knock(t,l){ const n=ctx.createBufferSource(); n.buffer=noiseBuf; const f=ctx.createBiquadFilter(); f.type="bandpass"; f.frequency.value=850; f.Q.value=3; n.connect(f); f.connect(env(t,0.12,0.9*l)); n.start(t); n.stop(t+0.15); thump(t,l*1.2); }
-  // Motivo en Re menor con segunda menor y tritono: Re, Mi bemol, Re, La bemol
-  const MOTIF=[146.83,155.56,146.83,207.65];
+  // Ostinato rápido en Re menor: Rem – Sib – Solm – La (i–VI–iv–V), bajo en corcheas y arpegio en semicorcheas
+  const N = m => 440*Math.pow(2,(m-69)/12);
+  const ROOTS=[38,34,31,33], CH=[[62,65,69,74],[58,62,65,70],[55,58,62,67],[57,61,64,69]], ARP=[0,1,2,3,2,1,2,3,0,1,2,3,3,2,1,0];
+  function bass(t,m,dur,l){ const o=ctx.createOscillator(); o.type="sawtooth"; o.frequency.value=N(m); const f=ctx.createBiquadFilter(); f.type="lowpass"; f.frequency.setValueAtTime(1100,t); f.frequency.exponentialRampToValueAtTime(160,t+dur); o.connect(f); f.connect(env(t,dur,0.18*l)); o.start(t); o.stop(t+dur+0.05); }
+  function noise(t,type,freq,dur,peak){ const n=ctx.createBufferSource(); n.buffer=noiseBuf; const f=ctx.createBiquadFilter(); f.type=type; f.frequency.value=freq; n.connect(f); f.connect(env(t,dur,peak)); n.start(t); n.stop(t+dur+0.02); }
   function level(){
     const c=S.cur;
     if (S.phase==="game" && c?.open && !c.paused) return (c.deadline-now())<2200 ? 2 : 1;
@@ -938,17 +941,21 @@ const Music = (()=>{
     return 0;
   }
   function schedule(){
-    const lvl=level(); const spb=60/[64,96,152][lvl];
+    const lvl=level(); const s16=60/[118,142,176][lvl]/4;
     if (nextBeat < ctx.currentTime) nextBeat = ctx.currentTime+0.05;
-    while (nextBeat < ctx.currentTime+0.15){
-      const t=nextBeat;
-      if (beat%2===0 || lvl===2) thump(t, lvl?1:0.6);
-      if (lvl>0 || beat%2===1) tick(t+spb/2, lvl?1:0.6, lvl===2);
-      if (beat%8===0){ const m=MOTIF[(beat/8)%4]; tone(t,m,spb*6,lvl?1.3:0.9); tone(t,m*1.498,spb*6,lvl?0.9:0.6); }
-      if (lvl===2 && beat%2===1) { tone(t,587.33,0.16,1.6,"sawtooth"); tone(t,622.25,0.16,1.2,"sawtooth"); }
-      beat++; nextBeat+=spb;
+    while (nextBeat < ctx.currentTime+0.12){
+      const t=nextBeat, st=beat%16, bar=Math.floor(beat/16)%4;
+      if (st%4===0) thump(t, lvl?1.1:0.75);
+      if (st%2===0) bass(t, ROOTS[bar]+(st%8===4?12:0), s16*1.7, lvl?1:0.75);
+      if (lvl>0 || st%2===0) tone(t, N(CH[bar][ARP[st]]), s16*0.9, lvl?0.85:0.6, lvl?"square":"triangle");
+      if (st%4===2) noise(t,"highpass",7000,0.03,lvl?0.14:0.08);
+      if (lvl===2 && st%2===1) noise(t,"highpass",8000,0.025,0.09);
+      if (lvl>0 && (st===4||st===12)) noise(t,"bandpass",1800,0.12,lvl===2?0.45:0.28);
+      if (lvl===2 && st%4===0){ tone(t,N(86),0.12,1.4,"sawtooth"); tone(t,N(87),0.12,1.1,"sawtooth"); }
+      if (st===0 && bar===3 && lvl>0) tone(t,N(81),s16*14,0.7,"sawtooth");
+      beat++; nextBeat+=s16;
     }
-    filt.frequency.setTargetAtTime([300,520,950][lvl], ctx.currentTime, 0.6);
+    filt.frequency.setTargetAtTime([260,420,800][lvl], ctx.currentTime, 0.6);
   }
   function apply(){ if(!ctx) return; master.gain.setTargetAtTime(on?vol*0.55:0, ctx.currentTime, 0.4); }
   return {
