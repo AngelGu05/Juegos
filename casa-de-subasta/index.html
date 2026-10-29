@@ -762,14 +762,14 @@ function viewFinal(){
 
   let aiBox="";
   if (isSport()){
-    aiBox = `<div class="panel cat"><div class="eyebrow">Categoría 2</div><h2 class="display" style="font-size:28px">Ranking de Claude</h2>
-      ${fin.ai?`<div class="winner">${top(aiR)}</div>${fin.ai.auto?`<span class="chip">Ranking automático por calidad, no de Claude</span>`:""}<div>${[...fin.ai.ranking].sort((a,b)=>a.puesto-b.puesto).map(r=>`<div class="ai-item"><b>${r.puesto}º</b> <strong>${esc(P(r.id).name)}</strong> <span class="chip">${r.nota}/10</span><div class="muted" style="font-size:14px;margin-top:4px">${esc(r.comentario)}</div></div>`).join("")}</div>${fin.ai.resumen?`<p style="margin:0">${esc(fin.ai.resumen)}</p>`:""}<div><button class="sm ghost" data-act="askAI">Pedir otra opinión</button></div>`
-      :`<p class="muted" style="margin:0;font-size:13px">Claude analiza cada equipo: calidad, equilibrio por posiciones y si alcanza para un ${THEMES[S.theme].unit}.</p>
-        <div class="row"><button class="brass" data-act="askAI" ${fin.aiBusy?"disabled":""}>${fin.aiBusy?"Claude está analizando los equipos…":"Pedir ranking a Claude"}</button></div>
+    aiBox = `<div class="panel cat"><div class="eyebrow">Categoría 2</div><h2 class="display" style="font-size:28px">Ranking del analista</h2>
+      ${fin.ai?`<div class="winner">${top(aiR)}</div>${fin.ai.auto?`<span class="chip">Ranking automático por calidad</span>`:""}<div>${[...fin.ai.ranking].sort((a,b)=>a.puesto-b.puesto).map(r=>`<div class="ai-item"><b>${r.puesto}º</b> <strong>${esc(P(r.id).name)}</strong> <span class="chip">${r.nota}/10</span><div class="muted" style="font-size:14px;margin-top:4px">${esc(r.comentario)}</div></div>`).join("")}</div>${fin.ai.resumen?`<p style="margin:0">${esc(fin.ai.resumen)}</p>`:""}<div><button class="sm ghost" data-act="askAI">Pedir otra opinión</button></div>`
+      :`<p class="muted" style="margin:0;font-size:13px">El analista evalúa cada equipo: calidad, equilibrio por posiciones y si alcanza para un ${THEMES[S.theme].unit}.</p>
+        <div class="row"><button class="brass" data-act="askAI" ${fin.aiBusy?"disabled":""}>${fin.aiBusy?"El analista está evaluando los equipos…":"Pedir ranking al analista"}</button></div>
         ${fin.aiErr?`<p class="err" style="margin:0">${esc(fin.aiErr)}</p><div><button class="sm" data-act="autoAI">Usar ranking automático</button></div>`:""}`}</div>`;
   }
 
-  const cats=[{k:"votos", name:"Votación", r:allVoted?voteR:null}]; if(isSport()) cats.push({k:"ia", name:"Claude", r:aiR}); cats.push({k:"cap", name:"Capital", r:capR});
+  const cats=[{k:"votos", name:"Votación", r:allVoted?voteR:null}]; if(isSport()) cats.push({k:"ia", name:"Analista", r:aiR}); cats.push({k:"cap", name:"Capital", r:capR});
   const n=S.postores.length; const ready=cats.filter(c=>c.r);
   const gen = rankList(S.postores.map(p=>{ let pts=0; ready.forEach(c=>{ const x=c.r.find(y=>y.id===p.id); pts+=n-x.rank+1; }); return {id:p.id, val:pts*1e9+capitalOf(p)}; }));
   const pending = cats.filter(c=>!c.r).map(c=>c.name);
@@ -782,27 +782,40 @@ function viewFinal(){
     <div class="cats">${voteBox}${aiBox}${capBox}</div>${genBox}
     <div class="panel"><div class="eyebrow">Equipos finales</div><div class="bidders" style="margin-top:10px">${S.postores.map(p=>`<article class="prow"><div class="phead"><span class="pname">${esc(p.name)}</span><span class="pcash">${fmt(p.cash)}</span></div>${teamList(p)}</article>`).join("")}</div></div>`;
 }
-async function askAI(){
-  const fin=S.fin; fin.aiBusy=true; fin.aiErr=""; render();
-  try{
-    if (!window.claude?.use) throw {code:"standalone"};
-    const sample = await claude.use("sample");
-    if (!sample) throw {code:"unavailable"};
-    const teams = S.postores.map(p=>`- ${p.name} (efectivo sobrante ${fmt(p.cash)}): ${p.fichas.length?p.fichas.map(id=>{const f=F(id);return `${f.name} [${f.pos}, ${f.team}${f.legend?", leyenda":""}]`}).join("; "):"sin jugadores"}`).join("\n");
-    const prompt = `Eres el analista experto de una subasta de ${THEMES[S.theme].sport}. Cada postor armó un equipo comprando jugadores reales (algunos son leyendas históricas, evalúalos en su mejor momento). Decide qué equipo es mejor para competir según: calidad de los jugadores, equilibrio por posiciones, si alcanza para un ${THEMES[S.theme].unit} competitivo, profundidad de banca y química. Un equipo sin jugadores va último.
+function rankingPayload(){
+  return {deporte:THEMES[S.theme].sport, unidad:THEMES[S.theme].unit, equipos:S.postores.map(p=>({postor:p.name, efectivo:p.cash, jugadores:p.fichas.map(id=>{const f=F(id); return {nombre:f.name, posicion:f.pos||"", equipo:f.team||"", leyenda:!!f.legend};})}))};
+}
+function rankingPrompt(d){
+  const teams=d.equipos.map(e=>`- ${e.postor} (efectivo sobrante $${e.efectivo}): ${e.jugadores.length?e.jugadores.map(j=>`${j.nombre} [${j.posicion}, ${j.equipo}${j.leyenda?", leyenda":""}]`).join("; "):"sin jugadores"}`).join("\n");
+  return `Eres el analista experto de una subasta de ${d.deporte}. Cada postor armó un equipo comprando jugadores reales (algunos son leyendas históricas, evalúalos en su mejor momento). Decide qué equipo es mejor para competir según: calidad de los jugadores, equilibrio por posiciones, si alcanza para un ${d.unidad} competitivo, profundidad de banca y química. Un equipo sin jugadores va último.
 
 Equipos:
 ${teams}
 
 Responde SOLO con JSON con esta forma exacta (todos los postores, puestos 1..N sin empates, nota de 0 a 10 con un decimal, comentario en español de máximo 2 frases, resumen de 1-2 frases):
 {"ranking":[{"postor":"Nombre exacto","puesto":1,"nota":8.5,"comentario":"..."}],"resumen":"..."}`;
-    const data = await sample.json(prompt, {modelTier:"default"});
+}
+async function askAI(){
+  const fin=S.fin; fin.aiBusy=true; fin.aiErr=""; render();
+  try{
+    const payload=rankingPayload(); let data;
+    if (window.claude?.use){
+      const sample = await claude.use("sample");
+      if (!sample) throw {code:"unavailable"};
+      data = await sample.json(rankingPrompt(payload), {modelTier:"default"});
+    } else {
+      const r = await fetch("/api/ranking", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)}).catch(()=>null);
+      if (!r) throw {code:"network"};
+      data = await r.json().catch(()=>null);
+      if (!r.ok) throw {code:data?.code||"server"};
+    }
     const list = Array.isArray(data?.ranking) ? data.ranking : [];
+    if (!list.length) throw {code:"invalid_json"};
     const ranking = S.postores.map(p=>{ const r=list.find(x=>String(x.postor).trim().toLowerCase()===p.name.trim().toLowerCase()); return {id:p.id, puesto:Number(r?.puesto)||S.postores.length, nota:Number(r?.nota)||0, comentario:String(r?.comentario||"Sin comentario.")}; });
-    fin.ai={ranking, resumen:String(data?.resumen||"")}; log("Ranking", `Claude ordena los equipos: ${[...ranking].sort((a,b)=>a.puesto-b.puesto).map(r=>`${r.puesto}º ${P(r.id).name}`).join(", ")}.`);
+    fin.ai={ranking, resumen:String(data?.resumen||"")}; log("Ranking", `El analista ordena los equipos: ${[...ranking].sort((a,b)=>a.puesto-b.puesto).map(r=>`${r.puesto}º ${P(r.id).name}`).join(", ")}.`);
   }catch(e){
-    const m={not_granted:"No se dio permiso para usar Claude en esta página.", rate_limited:"Claude recibió demasiadas peticiones. Espera un momento y vuelve a intentarlo.", invalid_json:"Claude respondió en un formato inesperado. Vuelve a intentarlo.", unavailable:"Claude no está disponible en esta vista.", standalone:"El ranking de Claude solo funciona cuando el juego se abre dentro de claude.ai. Aquí puedes usar el ranking automático."};
-    fin.aiErr = m[e?.code] || "No se pudo obtener el ranking de Claude. Vuelve a intentarlo.";
+    const m={not_granted:"No se dio permiso para usar el analista en esta página.", rate_limited:"El analista recibió demasiadas peticiones. Espera un momento y vuelve a intentarlo.", invalid_json:"El analista respondió en un formato inesperado. Vuelve a intentarlo.", unavailable:"El analista no está disponible en esta vista.", no_key:"El analista todavía no está configurado en este sitio. Puedes usar el ranking automático.", network:"No hay conexión con el analista. Revisa internet o usa el ranking automático."};
+    fin.aiErr = m[e?.code] || "No se pudo obtener el ranking del analista. Vuelve a intentarlo o usa el ranking automático.";
   }
   fin.aiBusy=false; render();
 }
