@@ -1,0 +1,890 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Casa de Subasta</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: sala de subastas en una sola pantalla. Escenario (ficha + martillo) a la izquierda, filas de postores a la derecha; en móvil se apilan. */
+:root{
+  --bg:#ECEEE8; --surface:#F8F9F4; --sunk:#E2E6DD; --ink:#13231B; --muted:#5A6A60; --line:#CDD5CA;
+  --accent:#1D5A43; --accent-ink:#F3F7F2; --brass:#B87A0B; --brass-soft:#F3E4C2; --good:#2B7A4B; --bad:#B23E2B;
+  --w1:#2B7A4B; --w2:#B23E2B; --w3:#C46A1A; --w4:#6B3FA0; --s1:#1D5A43; --s2:#3E7F66;
+  --shadow:0 1px 2px rgba(19,35,27,.08),0 8px 24px rgba(19,35,27,.08);
+  --f-display:"Anton","Impact","Arial Narrow",sans-serif;
+  --f-body:"Archivo",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0D1411; --surface:#151F1A; --sunk:#0A100D; --ink:#E6ECE5; --muted:#93A399; --line:#28362E;
+  --accent:#5CC497; --accent-ink:#06140D; --brass:#E7AF3C; --brass-soft:#3A2C0E; --good:#5CC497; --bad:#EE7C63;
+  --w1:#2F8A57; --w2:#B94733; --w3:#C7751F; --w4:#7A4DB5; --s1:#24664D; --s2:#3B8A6C;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0D1411; --surface:#151F1A; --sunk:#0A100D; --ink:#E6ECE5; --muted:#93A399; --line:#28362E;
+  --accent:#5CC497; --accent-ink:#06140D; --brass:#E7AF3C; --brass-soft:#3A2C0E; --good:#5CC497; --bad:#EE7C63;
+  --w1:#2F8A57; --w2:#B94733; --w3:#C7751F; --w4:#7A4DB5; --s1:#24664D; --s2:#3B8A6C;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35); color-scheme:dark}
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px 40px}
+.wrap{max-width:1320px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+h1,h2,h3{margin:0;text-wrap:balance}
+.display{font-family:var(--f-display);font-weight:400;letter-spacing:.01em;text-transform:uppercase;line-height:1}
+.mono,.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.muted{color:var(--muted)}
+button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:8px 14px;font-weight:600}
+button:hover:not(:disabled){border-color:var(--accent)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+button.brass{background:var(--brass);color:#1E1300;border-color:var(--brass)}
+button.danger{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 40%,var(--line))}
+button.ghost{background:transparent}
+button.big{padding:14px 22px;font-size:17px}
+button.sm{padding:5px 10px;font-size:13px}
+:focus-visible{outline:3px solid var(--brass);outline-offset:2px}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:0}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
+label{display:flex;flex-direction:column;gap:4px;font-weight:600;font-size:13px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.spacer{flex:1}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;background:var(--sunk);font-size:12px;font-weight:600;white-space:nowrap}
+.chip.brass{background:var(--brass-soft);color:var(--ink)}
+.chip.good{background:color-mix(in srgb,var(--good) 18%,transparent);color:var(--good)}
+.chip.bad{background:color-mix(in srgb,var(--bad) 16%,transparent);color:var(--bad)}
+.err{color:var(--bad);font-weight:600;font-size:13px;min-height:1.2em}
+
+/* Marca */
+.brand{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.brand h1{font-family:var(--f-display);font-weight:400;font-size:clamp(30px,5vw,46px);text-transform:uppercase;letter-spacing:.01em;line-height:.95}
+.brand h1 span{color:var(--brass)}
+.lot{font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+
+/* Setup */
+.steps{display:flex;gap:6px;flex-wrap:wrap}
+.steps span{font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;background:var(--sunk);color:var(--muted)}
+.steps span.on{background:var(--accent);color:var(--accent-ink)}
+.themes{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.theme-card{text-align:left;padding:22px;border-radius:14px;display:flex;flex-direction:column;gap:8px;min-height:170px;background:var(--surface)}
+.theme-card .display{font-size:36px}
+.theme-card.on{border:2px solid var(--brass);background:var(--brass-soft)}
+.pool-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.pool{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px;max-height:520px;overflow:auto;padding:2px}
+.pool label{flex-direction:row;align-items:flex-start;gap:10px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-weight:500;cursor:pointer}
+.pool label input{margin-top:3px;accent-color:var(--accent)}
+.pool label b{font-weight:700}
+.pool small{display:block;color:var(--muted);font-size:12px;line-height:1.35}
+.plist{display:flex;flex-direction:column;gap:8px}
+.plist .prow-in{display:flex;gap:8px;align-items:center}
+.plist .prow-in .n{font-family:var(--f-mono);color:var(--muted);width:2.2em;text-align:right}
+.plist .prow-in input{flex:1}
+.custom-list{display:flex;flex-direction:column;gap:6px;max-height:380px;overflow:auto}
+.custom-list div{display:flex;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+.custom-list div span{flex:1;min-width:0}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+
+/* Juego */
+.top{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between}
+.counters{display:flex;gap:8px;flex-wrap:wrap}
+.counter{display:flex;flex-direction:column;padding:6px 12px;border-radius:10px;background:var(--surface);border:1px solid var(--line);min-width:96px}
+.counter b{font-family:var(--f-mono);font-size:18px;font-variant-numeric:tabular-nums}
+.counter small{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+.board{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:18px;align-items:start}
+@media (max-width:900px){.board{grid-template-columns:minmax(0,1fr)}}
+.stage{position:sticky;top:max(12px,env(safe-area-inset-top,0px));display:flex;flex-direction:column;gap:14px}
+@media (max-width:900px){.stage{position:static}}
+.lotcard{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:12px}
+.lotcard .name{font-family:var(--f-display);font-size:clamp(34px,4.4vw,52px);text-transform:uppercase;line-height:.95;overflow-wrap:anywhere}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px}
+.fact{background:var(--sunk);border-radius:8px;padding:8px 10px;min-width:0}
+.fact small{display:block;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.fact span{font-weight:600;overflow-wrap:anywhere}
+.tray{font-size:14px;color:var(--muted)}
+.auction{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:center}
+.clock{--p:1;width:128px;height:128px;border-radius:50%;display:grid;place-items:center;
+  background:conic-gradient(var(--brass) calc(var(--p)*360deg),var(--sunk) 0)}
+.clock div{width:104px;height:104px;border-radius:50%;background:var(--surface);display:grid;place-items:center;font-family:var(--f-mono);font-size:34px;font-weight:700;font-variant-numeric:tabular-nums}
+.clock.hot{background:conic-gradient(var(--bad) calc(var(--p)*360deg),var(--sunk) 0)}
+.clock.hot div{color:var(--bad)}
+.highbid small{display:block}
+.highbid .amt{font-family:var(--f-mono);font-size:clamp(30px,4vw,44px);font-weight:700;font-variant-numeric:tabular-nums;line-height:1.05}
+.highbid .who{font-size:18px;font-weight:700;color:var(--accent)}
+.sold-banner{font-family:var(--f-display);font-size:clamp(40px,6vw,64px);text-transform:uppercase;color:var(--brass);line-height:.9}
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.compare div{background:var(--sunk);border-radius:10px;padding:10px 12px}
+.compare b{font-family:var(--f-mono);font-size:22px;display:block}
+.market{display:flex;flex-direction:column;gap:6px;max-height:440px;overflow:auto}
+.mitem{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.mitem div{flex:1;min-width:0}
+.mitem small{display:block;color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bidders{display:flex;flex-direction:column;gap:10px}
+.prow{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;transition:border-color .2s, box-shadow .2s}
+.prow.lead{border-color:var(--brass);box-shadow:0 0 0 2px var(--brass-soft)}
+.phead{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.pname{font-family:var(--f-display);font-size:26px;text-transform:uppercase;line-height:1}
+.pcash{font-family:var(--f-mono);font-weight:700;font-size:18px;color:var(--accent)}
+.bidbox{display:flex;gap:6px;margin-left:auto}
+.bidbox input{width:120px;font-family:var(--f-mono)}
+@media (max-width:520px){.bidbox{margin-left:0;width:100%}.bidbox input{flex:1;width:auto}}
+.team{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;border-top:1px dashed var(--line)}
+.team li{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px 14px;align-items:baseline;padding:6px 0;border-bottom:1px dashed var(--line)}
+.team li .t-name{font-weight:600;overflow-wrap:anywhere}
+.team li .t-name small{color:var(--muted);font-weight:500;margin-left:6px}
+.team li .t-val{font-family:var(--f-mono);font-size:13px;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.team li .t-val em{font-style:normal;color:var(--muted);font-family:var(--f-body);font-size:11px;margin-right:4px}
+@media (max-width:520px){.team li{grid-template-columns:minmax(0,1fr) auto}.team li .t-name{grid-column:1/-1}}
+.empty-team{color:var(--muted);font-size:13px;font-style:italic}
+.pfoot{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.flash{animation:flash .6s ease-out}
+@keyframes flash{from{background:var(--brass-soft)}to{background:var(--surface)}}
+
+/* Overlays */
+.ov{position:fixed;inset:0;z-index:50;background:color-mix(in srgb,var(--bg) 78%,transparent);backdrop-filter:blur(4px);overflow:auto;
+  padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.sheet{max-width:1040px;margin:0 auto;background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:22px;display:flex;flex-direction:column;gap:16px}
+.sheet h2{font-family:var(--f-display);font-weight:400;font-size:clamp(30px,4vw,44px);text-transform:uppercase;line-height:1}
+.bigclock{font-family:var(--f-mono);font-size:clamp(44px,8vw,80px);font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
+.bigclock.over{color:var(--bad)}
+.trade{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:700px){.trade{grid-template-columns:1fr}}
+.side{border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px;background:var(--bg)}
+.side .checks{display:flex;flex-direction:column;gap:4px;max-height:220px;overflow:auto}
+.side .checks label{flex-direction:row;align-items:center;gap:8px;font-weight:500}
+.confirm{display:flex;align-items:center;gap:8px;padding:10px;border-radius:10px;background:var(--sunk);font-weight:700}
+.confirm input{width:20px;height:20px;accent-color:var(--good)}
+.summary{padding:12px 14px;border-radius:10px;background:var(--brass-soft);font-weight:500}
+.wheel-wrap{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:22px;align-items:center}
+@media (max-width:700px){.wheel-wrap{grid-template-columns:1fr}}
+.wheel-box{position:relative;width:100%;max-width:340px;aspect-ratio:1;margin:0 auto}
+.wheel-box canvas{width:100%;height:100%;display:block}
+.wheel-box .pin{position:absolute;left:50%;top:-6px;transform:translateX(-50%);width:0;height:0;border-left:14px solid transparent;border-right:14px solid transparent;border-top:26px solid var(--ink)}
+.order{display:flex;gap:6px;flex-wrap:wrap}
+.order span{font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;background:var(--sunk);color:var(--muted)}
+.order span.now{background:var(--brass);color:#1E1300}
+.order span.done{text-decoration:line-through}
+.legend{display:flex;flex-direction:column;gap:6px;font-size:14px}
+.legend div{display:flex;gap:8px;align-items:center}
+.legend i{width:14px;height:14px;border-radius:4px;display:inline-block;flex:none}
+.result{font-size:20px;font-weight:700;padding:14px;border-radius:12px;background:var(--sunk)}
+.log{display:flex;flex-direction:column;gap:0;max-height:60vh;overflow:auto;border:1px solid var(--line);border-radius:10px}
+.log div{display:grid;grid-template-columns:3.2em 4.6em 7.5em minmax(0,1fr);gap:10px;padding:8px 12px;border-bottom:1px solid var(--line);font-size:13px;align-items:baseline}
+.log div:nth-child(odd){background:var(--bg)}
+.log .k{font-weight:700;text-transform:uppercase;font-size:11px;letter-spacing:.06em}
+@media (max-width:620px){.log div{grid-template-columns:3em minmax(0,1fr)}.log div .tm{display:none}.log div .k{grid-column:2}.log div .tx{grid-column:2}}
+.inline-confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 12px;border-radius:10px;background:color-mix(in srgb,var(--bad) 12%,var(--surface));border:1px solid color-mix(in srgb,var(--bad) 35%,var(--line))}
+
+/* Final */
+.cats{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.cat{display:flex;flex-direction:column;gap:10px}
+.cat .winner{font-family:var(--f-display);font-size:34px;text-transform:uppercase;color:var(--brass);line-height:1}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+td.n,th.n{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.tscroll{overflow-x:auto}
+.votes{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.ai-item{padding:10px 0;border-bottom:1px dashed var(--line)}
+.ai-item b{font-family:var(--f-mono)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+
+<div class="wrap" id="app"></div>
+<div id="ov"></div>
+
+<script>
+/* ---------- Datos ---------- */
+const FUT = [
+ ["Kylian Mbappé","DEL","Real Madrid","Francia","1.78",94,"Mónaco → PSG → Real Madrid · Campeón del Mundo 2018 · Bota de Oro 2025"],
+ ["Erling Haaland","DEL","Manchester City","Noruega","1.95",93,"Molde → Salzburgo → Dortmund → Man City · Champions 2023"],
+ ["Lamine Yamal","DEL","FC Barcelona","España","1.80",93,"La Masía → Barcelona · Eurocopa 2024 · Trofeo Kopa"],
+ ["Ousmane Dembélé","DEL","PSG","Francia","1.78",92,"Rennes → Dortmund → Barcelona → PSG · Balón de Oro 2025 · Champions 2025"],
+ ["Vinícius Júnior","DEL","Real Madrid","Brasil","1.76",91,"Flamengo → Real Madrid · 2 Champions · The Best 2024"],
+ ["Harry Kane","DEL","Bayern Múnich","Inglaterra","1.88",91,"Tottenham → Bayern · Bundesliga 2025 · 3 Botas de Oro de la Premier"],
+ ["Mohamed Salah","DEL","Liverpool","Egipto","1.75",90,"Basilea → Chelsea → Roma → Liverpool · Champions 2019 · 2 Premier"],
+ ["Pedri","MED","FC Barcelona","España","1.74",90,"Las Palmas → Barcelona · Eurocopa 2024 · Golden Boy 2021"],
+ ["Jude Bellingham","MED","Real Madrid","Inglaterra","1.86",89,"Birmingham → Dortmund → Real Madrid · Champions 2024"],
+ ["Raphinha","DEL","FC Barcelona","Brasil","1.76",89,"Vitória Guimarães → Rennes → Leeds → Barcelona"],
+ ["Rodri","MED","Manchester City","España","1.91",89,"Villarreal → Atlético → Man City · Balón de Oro 2024 · Eurocopa 2024"],
+ ["Vitinha","MED","PSG","Portugal","1.72",89,"Oporto → Wolves (cedido) → PSG · Champions 2025"],
+ ["Jamal Musiala","MED","Bayern Múnich","Alemania","1.84",89,"Chelsea (juveniles) → Bayern · varias Bundesligas"],
+ ["Thibaut Courtois","POR","Real Madrid","Bélgica","1.99",89,"Genk → Atlético (cedido) → Chelsea → Real Madrid · 2 Champions"],
+ ["Gianluigi Donnarumma","POR","Manchester City","Italia","1.96",89,"Milan → PSG → Man City · Eurocopa 2021 · Champions 2025"],
+ ["Achraf Hakimi","DEF","PSG","Marruecos","1.81",88,"Real Madrid → Dortmund → Inter → PSG · Champions 2025"],
+ ["Khvicha Kvaratskhelia","DEL","PSG","Georgia","1.83",88,"Rubin Kazán → Napoli → PSG · Serie A 2023 · Champions 2025"],
+ ["Florian Wirtz","MED","Liverpool","Alemania","1.77",88,"Leverkusen → Liverpool · Bundesliga invicta 2024"],
+ ["Michael Olise","DEL","Bayern Múnich","Francia","1.84",88,"Reading → Crystal Palace → Bayern"],
+ ["Bukayo Saka","DEL","Arsenal","Inglaterra","1.78",88,"Canteras del Arsenal · finalista de la Euro 2020 y 2024"],
+ ["Declan Rice","MED","Arsenal","Inglaterra","1.85",88,"West Ham → Arsenal · Conference League 2023"],
+ ["William Saliba","DEF","Arsenal","Francia","1.92",88,"Saint-Étienne → Arsenal → Marsella (cedido) → Arsenal"],
+ ["Virgil van Dijk","DEF","Liverpool","Países Bajos","1.95",88,"Groningen → Celtic → Southampton → Liverpool · Champions 2019"],
+ ["Alisson Becker","POR","Liverpool","Brasil","1.93",88,"Internacional → Roma → Liverpool · Champions 2019"],
+ ["Federico Valverde","MED","Real Madrid","Uruguay","1.82",88,"Peñarol → Real Madrid · 2 Champions"],
+ ["Lautaro Martínez","DEL","Inter de Milán","Argentina","1.74",88,"Racing → Inter · Campeón del Mundo 2022 · 2 Copas América"],
+ ["Julián Álvarez","DEL","Atlético de Madrid","Argentina","1.70",88,"River Plate → Man City → Atlético · Campeón del Mundo 2022"],
+ ["Cole Palmer","MED","Chelsea","Inglaterra","1.89",87,"Man City → Chelsea · Mundial de Clubes 2025"],
+ ["Moisés Caicedo","MED","Chelsea","Ecuador","1.78",87,"Independiente del Valle → Brighton → Chelsea"],
+ ["Alexander Isak","DEL","Liverpool","Suecia","1.92",87,"AIK → Dortmund → Real Sociedad → Newcastle → Liverpool"],
+ ["Joshua Kimmich","MED","Bayern Múnich","Alemania","1.77",87,"Leipzig → Bayern · Champions 2020"],
+ ["Lionel Messi","DEL","Inter Miami","Argentina","1.70",87,"Barcelona → PSG → Inter Miami · 8 Balones de Oro · Campeón del Mundo 2022"],
+ ["Martin Ødegaard","MED","Arsenal","Noruega","1.78",86,"Strømsgodset → Real Madrid → Real Sociedad (cedido) → Arsenal"],
+ ["Viktor Gyökeres","DEL","Arsenal","Suecia","1.87",86,"Brighton → Coventry → Sporting CP → Arsenal"],
+ ["Jan Oblak","POR","Atlético de Madrid","Eslovenia","1.88",86,"Olimpija → Benfica → Atlético · 5 Zamoras"],
+ ["Bruno Fernandes","MED","Manchester United","Portugal","1.79",86,"Udinese → Sampdoria → Sporting CP → Man United"],
+ ["Victor Osimhen","DEL","Galatasaray","Nigeria","1.86",86,"Wolfsburgo → Lille → Napoli → Galatasaray · Serie A 2023"],
+ ["Joško Gvardiol","DEF","Manchester City","Croacia","1.85",86,"Dinamo Zagreb → Leipzig → Man City"],
+ ["Alexis Mac Allister","MED","Liverpool","Argentina","1.76",86,"Argentinos Juniors → Brighton → Liverpool · Campeón del Mundo 2022"],
+ ["Nicolò Barella","MED","Inter de Milán","Italia","1.72",86,"Cagliari → Inter · Eurocopa 2021"],
+ ["Désiré Doué","DEL","PSG","Francia","1.81",86,"Rennes → PSG · Champions 2025 (2 goles en la final)"],
+ ["João Neves","MED","PSG","Portugal","1.74",86,"Benfica → PSG · Champions 2025"],
+ ["Emiliano Martínez","POR","Aston Villa","Argentina","1.95",86,"Independiente → Arsenal → Aston Villa · Campeón del Mundo 2022"],
+ ["Phil Foden","MED","Manchester City","Inglaterra","1.71",85,"Canteras del City · Champions 2023 · 6 Premier"],
+ ["Pau Cubarsí","DEF","FC Barcelona","España","1.84",85,"La Masía → Barcelona · Oro olímpico 2024"],
+ ["Trent Alexander-Arnold","DEF","Real Madrid","Inglaterra","1.80",85,"Liverpool → Real Madrid · Champions 2019"],
+ ["Nico Williams","DEL","Athletic Club","España","1.81",85,"Canteras del Athletic · Eurocopa 2024"],
+ ["Rafael Leão","DEL","AC Milan","Portugal","1.88",85,"Sporting CP → Lille → Milan · Serie A 2022"],
+ ["Robert Lewandowski","DEL","FC Barcelona","Polonia","1.85",85,"Lech Poznań → Dortmund → Bayern → Barcelona · Champions 2020"],
+ ["Enzo Fernández","MED","Chelsea","Argentina","1.78",85,"River Plate → Benfica → Chelsea · Campeón del Mundo 2022"],
+ ["Kevin De Bruyne","MED","Napoli","Bélgica","1.81",84,"Genk → Chelsea → Wolfsburgo → Man City → Napoli · Champions 2023"],
+ ["Antoine Griezmann","DEL","Atlético de Madrid","Francia","1.76",84,"Real Sociedad → Atlético → Barcelona → Atlético · Campeón del Mundo 2018"],
+ ["Cristiano Ronaldo","DEL","Al-Nassr","Portugal","1.87",84,"Sporting → Man United → Real Madrid → Juventus → Man United → Al-Nassr · 5 Balones de Oro"],
+ ["Kenan Yıldız","DEL","Juventus","Turquía","1.85",84,"Bayern (juveniles) → Juventus"],
+ ["Luka Modrić","MED","AC Milan","Croacia","1.72",83,"Dinamo Zagreb → Tottenham → Real Madrid → Milan · Balón de Oro 2018 · 6 Champions"],
+ ["Neymar Jr.","DEL","Santos","Brasil","1.75",79,"Santos → Barcelona → PSG → Al-Hilal → Santos · Champions 2015"],
+];
+const FUT_LEG = [
+ ["Pelé","DEL","Santos","Brasil","1.73",99,"Santos → New York Cosmos · 3 Mundiales (1958, 1962, 1970)"],
+ ["Diego Maradona","MED","Napoli","Argentina","1.65",99,"Argentinos Jrs → Boca → Barcelona → Napoli → Sevilla · Mundial 1986"],
+ ["Johan Cruyff","DEL","Ajax / Barcelona","Países Bajos","1.78",97,"Ajax → Barcelona → Feyenoord · 3 Balones de Oro"],
+ ["Alfredo Di Stéfano","DEL","Real Madrid","Argentina / España","1.78",97,"River → Millonarios → Real Madrid · 5 Copas de Europa"],
+ ["Zinedine Zidane","MED","Real Madrid","Francia","1.85",97,"Cannes → Burdeos → Juventus → Real Madrid · Mundial 1998 · Balón de Oro 1998"],
+ ["Ronaldo Nazário","DEL","Inter / Real Madrid","Brasil","1.83",97,"Cruzeiro → PSV → Barcelona → Inter → Real Madrid · 2 Mundiales · 2 Balones de Oro"],
+ ["Franz Beckenbauer","DEF","Bayern Múnich","Alemania","1.81",96,"Bayern → New York Cosmos · Mundial 1974 · 2 Balones de Oro"],
+ ["Ronaldinho","DEL","FC Barcelona","Brasil","1.82",95,"Grêmio → PSG → Barcelona → Milan · Mundial 2002 · Balón de Oro 2005"],
+ ["Paolo Maldini","DEF","AC Milan","Italia","1.86",95,"Toda su carrera en el Milan · 5 Copas de Europa"],
+ ["Xavi Hernández","MED","FC Barcelona","España","1.70",94,"Barcelona → Al-Sadd · Mundial 2010 · 4 Champions"],
+ ["Andrés Iniesta","MED","FC Barcelona","España","1.71",94,"Barcelona → Vissel Kobe · gol en la final del Mundial 2010"],
+ ["Thierry Henry","DEL","Arsenal","Francia","1.88",94,"Mónaco → Juventus → Arsenal → Barcelona · Mundial 1998"],
+ ["Gianluigi Buffon","POR","Juventus","Italia","1.92",94,"Parma → Juventus → PSG → Juventus → Parma · Mundial 2006"],
+ ["Iker Casillas","POR","Real Madrid","España","1.85",93,"Real Madrid → Oporto · Mundial 2010 · 3 Champions"],
+ ["Andrea Pirlo","MED","Milan / Juventus","Italia","1.77",92,"Brescia → Inter → Milan → Juventus · Mundial 2006"],
+];
+const NBA = [
+ ["Nikola Jokić","Pívot","Denver Nuggets","Serbia","2.11",98,"Mega Basket → Denver · Campeón 2023 · 3 MVP"],
+ ["Shai Gilgeous-Alexander","Base","Oklahoma City Thunder","Canadá","1.98",97,"Kentucky → Clippers → OKC · Campeón y MVP 2025"],
+ ["Giannis Antetokounmpo","Ala-pívot","Milwaukee Bucks","Grecia","2.11",95,"Filathlitikos → Milwaukee · Campeón 2021 · 2 MVP"],
+ ["Luka Dončić","Base","Los Angeles Lakers","Eslovenia","2.01",95,"Real Madrid → Dallas → Lakers · 5 veces quinteto ideal NBA"],
+ ["Victor Wembanyama","Pívot","San Antonio Spurs","Francia","2.24",93,"Metropolitans 92 → San Antonio · Novato del Año 2024"],
+ ["Anthony Edwards","Escolta","Minnesota Timberwolves","EE. UU.","1.93",92,"Georgia → Minnesota · Oro olímpico 2024"],
+ ["Stephen Curry","Base","Golden State Warriors","EE. UU.","1.88",91,"Davidson → Golden State · 4 anillos · 2 MVP"],
+ ["Jalen Brunson","Base","New York Knicks","EE. UU.","1.88",90,"Villanova → Dallas → New York"],
+ ["Donovan Mitchell","Escolta","Cleveland Cavaliers","EE. UU.","1.88",90,"Louisville → Utah → Cleveland"],
+ ["Cade Cunningham","Base","Detroit Pistons","EE. UU.","1.98",90,"Oklahoma State → Detroit · Nº 1 del draft 2021"],
+ ["Jayson Tatum","Alero","Boston Celtics","EE. UU.","2.03",89,"Duke → Boston · Campeón 2024 · volviendo de lesión de Aquiles"],
+ ["Kevin Durant","Alero","Houston Rockets","EE. UU.","2.11",89,"Seattle/OKC → Golden State → Brooklyn → Phoenix → Houston · 2 anillos"],
+ ["LeBron James","Alero","Los Angeles Lakers","EE. UU.","2.06",88,"Cleveland → Miami → Cleveland → Lakers · 4 anillos · máximo anotador histórico"],
+ ["Anthony Davis","Ala-pívot","Dallas Mavericks","EE. UU.","2.08",88,"Kentucky → New Orleans → Lakers → Dallas · Campeón 2020"],
+ ["Jalen Williams","Escolta","Oklahoma City Thunder","EE. UU.","1.96",88,"Santa Clara → OKC · Campeón 2025"],
+ ["Jaylen Brown","Escolta","Boston Celtics","EE. UU.","1.98",88,"California → Boston · Campeón y MVP de las Finales 2024"],
+ ["Evan Mobley","Ala-pívot","Cleveland Cavaliers","EE. UU.","2.13",88,"USC → Cleveland · Mejor Defensor 2025"],
+ ["Tyrese Maxey","Base","Philadelphia 76ers","EE. UU.","1.88",87,"Kentucky → Philadelphia"],
+ ["Devin Booker","Escolta","Phoenix Suns","EE. UU.","1.96",87,"Kentucky → Phoenix · Oro olímpico 2021 y 2024"],
+ ["Karl-Anthony Towns","Pívot","New York Knicks","Rep. Dominicana","2.11",87,"Kentucky → Minnesota → New York"],
+ ["Paolo Banchero","Ala-pívot","Orlando Magic","EE. UU.","2.08",87,"Duke → Orlando · Novato del Año 2023"],
+ ["Alperen Şengün","Pívot","Houston Rockets","Turquía","2.11",87,"Beşiktaş → Houston"],
+ ["Kawhi Leonard","Alero","LA Clippers","EE. UU.","2.01",87,"San Diego State → San Antonio → Toronto → Clippers · 2 MVP de las Finales"],
+ ["Jamal Murray","Base","Denver Nuggets","Canadá","1.93",87,"Kentucky → Denver · Campeón 2023"],
+ ["Joel Embiid","Pívot","Philadelphia 76ers","Camerún","2.13",86,"Kansas → Philadelphia · MVP 2023"],
+ ["Pascal Siakam","Ala-pívot","Indiana Pacers","Camerún","2.03",86,"New Mexico State → Toronto → Indiana · Campeón 2019"],
+ ["Jaren Jackson Jr.","Ala-pívot","Memphis Grizzlies","EE. UU.","2.08",86,"Michigan State → Memphis · Mejor Defensor 2023"],
+ ["Chet Holmgren","Pívot","Oklahoma City Thunder","EE. UU.","2.16",86,"Gonzaga → OKC · Campeón 2025"],
+ ["Franz Wagner","Alero","Orlando Magic","Alemania","2.08",86,"Michigan → Orlando · Campeón del Mundo FIBA 2023"],
+ ["James Harden","Escolta","LA Clippers","EE. UU.","1.96",86,"OKC → Houston → Brooklyn → Philadelphia → Clippers · MVP 2018"],
+ ["De'Aaron Fox","Base","San Antonio Spurs","EE. UU.","1.91",86,"Kentucky → Sacramento → San Antonio"],
+ ["Trae Young","Base","Atlanta Hawks","EE. UU.","1.85",86,"Oklahoma → Atlanta"],
+ ["Domantas Sabonis","Pívot","Sacramento Kings","Lituania","2.06",86,"Gonzaga → OKC → Indiana → Sacramento"],
+ ["LaMelo Ball","Base","Charlotte Hornets","EE. UU.","2.01",86,"Illawarra Hawks → Charlotte · Novato del Año 2021"],
+ ["Kyrie Irving","Base","Dallas Mavericks","EE. UU.","1.88",85,"Cleveland → Boston → Brooklyn → Dallas · Campeón 2016 · lesión de rodilla"],
+ ["Tyrese Haliburton","Base","Indiana Pacers","EE. UU.","1.96",85,"Sacramento → Indiana · Finales 2025 · lesión de Aquiles"],
+ ["Jimmy Butler","Alero","Golden State Warriors","EE. UU.","2.01",85,"Chicago → Minnesota → Philadelphia → Miami → Golden State"],
+ ["Ja Morant","Base","Memphis Grizzlies","EE. UU.","1.88",85,"Murray State → Memphis · Novato del Año 2020"],
+ ["Bam Adebayo","Pívot","Miami Heat","EE. UU.","2.06",85,"Kentucky → Miami · 2 oros olímpicos"],
+ ["Amen Thompson","Escolta","Houston Rockets","EE. UU.","2.01",85,"Overtime Elite → Houston"],
+ ["Scottie Barnes","Alero","Toronto Raptors","EE. UU.","2.01",85,"Florida State → Toronto · Novato del Año 2022"],
+ ["Rudy Gobert","Pívot","Minnesota Timberwolves","Francia","2.16",85,"Cholet → Utah → Minnesota · 4 veces Mejor Defensor"],
+ ["Tyler Herro","Escolta","Miami Heat","EE. UU.","1.96",85,"Kentucky → Miami · Sexto Hombre 2022"],
+ ["Cooper Flagg","Alero","Dallas Mavericks","EE. UU.","2.06",84,"Duke → Dallas · Nº 1 del draft 2025"],
+ ["Zion Williamson","Ala-pívot","New Orleans Pelicans","EE. UU.","1.98",84,"Duke → New Orleans · Nº 1 del draft 2019"],
+ ["Lauri Markkanen","Ala-pívot","Utah Jazz","Finlandia","2.13",84,"Arizona → Chicago → Cleveland → Utah"],
+ ["Mikal Bridges","Alero","New York Knicks","EE. UU.","1.98",84,"Villanova → Phoenix → Brooklyn → New York"],
+ ["Damian Lillard","Base","Portland Trail Blazers","EE. UU.","1.88",82,"Weber State → Portland → Milwaukee → Portland · lesión de Aquiles"],
+ ["Paul George","Alero","Philadelphia 76ers","EE. UU.","2.03",82,"Fresno State → Indiana → OKC → Clippers → Philadelphia"],
+ ["Jrue Holiday","Base","Portland Trail Blazers","EE. UU.","1.93",82,"UCLA → Philadelphia → New Orleans → Milwaukee → Boston → Portland · 2 anillos"],
+];
+const NBA_LEG = [
+ ["Michael Jordan","Escolta","Chicago Bulls","EE. UU.","1.98",99,"North Carolina → Chicago → Washington · 6 anillos · 5 MVP"],
+ ["Kareem Abdul-Jabbar","Pívot","Los Angeles Lakers","EE. UU.","2.18",97,"UCLA → Milwaukee → Lakers · 6 anillos · 6 MVP"],
+ ["Magic Johnson","Base","Los Angeles Lakers","EE. UU.","2.06",97,"Michigan State → Lakers · 5 anillos · 3 MVP"],
+ ["Kobe Bryant","Escolta","Los Angeles Lakers","EE. UU.","1.98",97,"Toda su carrera en los Lakers · 5 anillos"],
+ ["Larry Bird","Alero","Boston Celtics","EE. UU.","2.06",96,"Indiana State → Boston · 3 anillos · 3 MVP"],
+ ["Shaquille O'Neal","Pívot","Los Angeles Lakers","EE. UU.","2.16",96,"LSU → Orlando → Lakers → Miami → Phoenix · 4 anillos"],
+ ["Tim Duncan","Ala-pívot","San Antonio Spurs","EE. UU.","2.11",96,"Wake Forest → San Antonio · 5 anillos"],
+ ["Wilt Chamberlain","Pívot","Philadelphia / Lakers","EE. UU.","2.16",96,"Warriors → 76ers → Lakers · 100 puntos en un partido"],
+ ["Hakeem Olajuwon","Pívot","Houston Rockets","Nigeria / EE. UU.","2.13",95,"U. de Houston → Houston Rockets → Toronto · 2 anillos"],
+ ["Bill Russell","Pívot","Boston Celtics","EE. UU.","2.08",95,"San Francisco → Boston · 11 anillos"],
+ ["Dirk Nowitzki","Ala-pívot","Dallas Mavericks","Alemania","2.13",93,"Würzburg → Dallas · Campeón y MVP de las Finales 2011"],
+ ["Pau Gasol","Pívot","Los Angeles Lakers","España","2.13",91,"Barcelona → Memphis → Lakers → Chicago → San Antonio · 2 anillos · Mundial 2006"],
+ ["Allen Iverson","Base","Philadelphia 76ers","EE. UU.","1.83",91,"Georgetown → Philadelphia → Denver → Detroit · MVP 2001"],
+ ["Manu Ginóbili","Escolta","San Antonio Spurs","Argentina","1.98",90,"Bahía Blanca → Reggio Calabria → Virtus Bolonia → San Antonio · 4 anillos · Oro olímpico 2004"],
+];
+const THEMES = {
+  futbol:{label:"Fútbol", sport:"fútbol", desc:"Futbolistas actuales y leyendas con equipo, trayectoria y estatura.", unit:"once titular"},
+  basket:{label:"Básquetbol", sport:"básquetbol (NBA)", desc:"Basquetbolistas de la NBA actual y leyendas con equipo, trayectoria y estatura.", unit:"quinteto titular"},
+  libre:{label:"Libre", sport:null, desc:"La casa de subasta escribe los personajes. Sin precio de mercado."},
+};
+function poolFor(theme){
+  const mk = (arr, legend, pre) => arr.map((a,i)=>({id:pre+(legend?"L":"")+i, name:a[0], pos:a[1], team:a[2], nat:a[3], h:a[4], r:a[5], tray:a[6], legend}));
+  if (theme==="futbol") return [...mk(FUT,false,"f"), ...mk(FUT_LEG,true,"f")];
+  if (theme==="basket") return [...mk(NBA,false,"b"), ...mk(NBA_LEG,true,"b")];
+  return [];
+}
+
+/* ---------- Utilidades ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmt = n => "$" + Math.round(n||0).toLocaleString("es-MX");
+const shuffle = a => { a=[...a]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]} return a; };
+const pick = a => a[Math.floor(Math.random()*a.length)];
+const now = () => Date.now();
+const clock = () => new Date().toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit"});
+function nice(x){ if(x<=0) return 0; if(x<10) return Math.max(1,Math.round(x)); const mag=Math.pow(10,Math.floor(Math.log10(x))-1); return Math.round(x/mag)*mag; }
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const isSport = () => S.theme==="futbol" || S.theme==="basket";
+
+/* Precio de mercado: según la calidad (72–99) y el dinero inicial. Un crack de 99 vale ~42 % del presupuesto. */
+function marketPrice(r, cash0){
+  if (r==null) return null;
+  const q = Math.max(0, Math.min(1, (r-72)/27));
+  return nice(cash0 * (0.02 + 0.40*Math.pow(q,2.3)));
+}
+
+/* ---------- Estado ---------- */
+const KEY = "casa-subasta-v1";
+function fresh(){ return {v:1, phase:"setup", step:1, theme:null, selected:[], custom:[], postores:[], cash0:1000, bidSecs:5, firstSecs:10, breakSecs:120,
+  fichas:{}, market:[], sales:0, log:[], cur:null, sold:null, pending:[], brk:null, rul:null, rulRound:0, brkRound:0, trades:0, fin:null, seq:1}; }
+let S = fresh();
+let UI = {err:"", confirmEnd:false, confirmNew:false, logOpen:false, T:null, flash:null, rot:0, spinning:false};
+function load(){ try{ const raw=localStorage.getItem(KEY); return raw?JSON.parse(raw):null; }catch(e){ return null; } }
+function save(){
+  if (S.cur?.open && !S.cur.paused) S.cur.remaining = Math.max(0, S.cur.deadline-now());
+  if (S.brk && !S.brk.paused) S.brk.remaining = Math.max(0, S.brk.deadline-now());
+  try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){}
+}
+const uid = p => p + (S.seq++);
+const P = id => S.postores.find(p=>p.id===id);
+const F = id => S.fichas[id];
+function log(kind, text){ S.log.push({n:S.log.length+1, t:clock(), venta:S.sales, kind, text}); }
+function valueOf(f){ return isSport() ? (f.mkt||0) : (f.value||0); }
+
+/* ---------- Render principal ---------- */
+function render(){
+  const keep = {}; document.querySelectorAll("input[id],select[id],textarea[id]").forEach(el=>{ if(el.type!=="checkbox") keep[el.id]=el.value; });
+  const focus = document.activeElement?.id;
+  const app = $("#app");
+  app.innerHTML = S.phase==="setup" ? viewSetup() : S.phase==="game" ? viewGame() : viewFinal();
+  renderOverlay();
+  for (const id in keep){ const el=document.getElementById(id); if(el && el.dataset.keep!=="no" && el.type!=="checkbox") el.value=keep[id]; }
+  if (focus){ const el=document.getElementById(focus); if(el && el.focus) el.focus({preventScroll:true}); }
+  if (UI.flash){ document.getElementById("row-"+UI.flash)?.classList.add("flash"); UI.flash=null; }
+  drawWheelIfAny();
+  save();
+}
+
+function header(sub){
+  return `<div class="brand"><h1>Casa de <span>Subasta</span></h1>${sub?`<span class="lot">${sub}</span>`:""}</div>`;
+}
+
+/* ---------- Configuración ---------- */
+function viewSetup(){
+  const names=["Temática", S.theme==="libre"?"Personajes":"Jugadores", "Postores", "Dinero y tiempos"];
+  const steps = `<div class="steps">${names.map((n,i)=>`<span class="${S.step===i+1?"on":""}">${i+1}. ${n}</span>`).join("")}</div>`;
+  let body="";
+  if (S.step===1){
+    body = `<div class="panel"><div class="eyebrow">Paso 1</div><h2 class="display" style="font-size:30px;margin:4px 0 14px">¿De qué es la subasta?</h2>
+    <div class="themes">${Object.entries(THEMES).map(([k,t])=>`<button class="theme-card ${S.theme===k?"on":""}" data-act="theme" data-v="${k}"><span class="display">${t.label}</span><span class="muted">${t.desc}</span></button>`).join("")}</div></div>`;
+  } else if (S.step===2 && S.theme!=="libre"){
+    const pool = poolFor(S.theme); const sel=new Set(S.selected);
+    body = `<div class="panel" style="display:flex;flex-direction:column;gap:12px"><div><div class="eyebrow">Paso 2 · ${THEMES[S.theme].label}</div>
+      <h2 class="display" style="font-size:30px;margin-top:4px">Lista de jugadores para la casa</h2>
+      <p class="muted" style="margin:6px 0 0;max-width:70ch">Marca los que entran a la subasta. Los datos son de la temporada 2025-26 y algún traspaso reciente puede no estar. El precio de mercado no se muestra hasta que se vende cada jugador.</p></div>
+      <div class="pool-tools"><button class="sm" data-act="selAll">Todos</button><button class="sm" data-act="selCur">Solo actuales</button><button class="sm" data-act="selLeg">Solo leyendas</button><button class="sm" data-act="selNone">Ninguno</button><span class="spacer"></span><span class="chip brass">${S.selected.length} seleccionados</span></div>
+      <div class="pool">${pool.map(f=>`<label><input type="checkbox" data-in="sel" data-id="${f.id}" ${sel.has(f.id)?"checked":""}><span><b>${esc(f.name)}</b> ${f.legend?'<span class="chip brass">Leyenda</span>':""}<small>${esc(f.pos)} · ${esc(f.team)} · ${esc(f.nat)} · ${f.h} m</small><small>${esc(f.tray)}</small></span></label>`).join("")}</div></div>`;
+  } else if (S.step===2){
+    body = `<div class="panel" style="display:flex;flex-direction:column;gap:14px"><div><div class="eyebrow">Paso 2 · Libre</div><h2 class="display" style="font-size:30px;margin-top:4px">Escribe los personajes</h2></div>
+      <div class="row" style="align-items:flex-end"><label style="flex:1 1 200px">Nombre<input id="c-name" placeholder="Ej. Goku" data-keep="no"></label><label style="flex:2 1 260px">Descripción (opcional)<input id="c-desc" placeholder="Ej. Guerrero saiyajin" data-keep="no"></label><button class="primary" data-act="addCustom">Añadir</button></div>
+      <details><summary class="muted" style="cursor:pointer">Pegar varios a la vez (uno por línea)</summary><div class="row" style="margin-top:8px;align-items:flex-end"><textarea id="c-bulk" rows="4" style="flex:1 1 300px" placeholder="Batman&#10;Superman&#10;Mujer Maravilla" data-keep="no"></textarea><button data-act="addBulk">Añadir lista</button></div></details>
+      <div class="custom-list">${S.custom.length?S.custom.map((c,i)=>`<div><span class="mono muted">${i+1}</span><span><b>${esc(c.name)}</b>${c.desc?` <span class="muted">· ${esc(c.desc)}</span>`:""}</span><button class="sm ghost danger" data-act="delCustom" data-i="${i}">Quitar</button></div>`).join(""):`<p class="muted">Todavía no hay personajes. Añade al menos uno.</p>`}</div></div>`;
+  } else if (S.step===3){
+    body = `<div class="panel" style="display:flex;flex-direction:column;gap:14px"><div><div class="eyebrow">Paso 3</div><h2 class="display" style="font-size:30px;margin-top:4px">Postores</h2><p class="muted" style="margin:6px 0 0">Cada postor será una fila en la pantalla de la subasta. Mínimo 2.</p></div>
+      <div class="plist">${S.postores.map((p,i)=>`<div class="prow-in"><span class="n">${i+1}</span><input id="pn-${p.id}" data-in="pname" data-id="${p.id}" value="${esc(p.name)}" placeholder="Nombre del postor"><button class="sm ghost danger" data-act="delPostor" data-id="${p.id}">Quitar</button></div>`).join("")}</div>
+      <div><button class="primary" data-act="addPostor">+ Añadir postor</button></div></div>`;
+  } else {
+    body = `<div class="panel" style="display:flex;flex-direction:column;gap:14px"><div><div class="eyebrow">Paso 4</div><h2 class="display" style="font-size:30px;margin-top:4px">¿Con cuánto dinero empiezan?</h2><p class="muted" style="margin:6px 0 0">Todos los postores arrancan con la misma cantidad.</p></div>
+      <div class="grid2">
+        <label>Dinero inicial por postor<input id="cash0" type="number" min="1" step="1" data-in="cfg" data-k="cash0" value="${S.cash0}"></label>
+        <label>Segundos para superar una puja<input id="bidSecs" type="number" min="2" max="30" data-in="cfg" data-k="bidSecs" value="${S.bidSecs}"></label>
+        <label>Segundos para la primera puja<input id="firstSecs" type="number" min="3" max="60" data-in="cfg" data-k="firstSecs" value="${S.firstSecs}"></label>
+        <label>Duración del descanso de intercambios (s)<input id="breakSecs" type="number" min="30" max="600" data-in="cfg" data-k="breakSecs" value="${S.breakSecs}"></label>
+      </div>
+      <div class="summary">Intercambios cada 10 ventas · Ruleta cada 15 ventas (si coinciden, primero la ruleta) · Si nadie puja, la ficha vuelve al mercado.</div></div>`;
+  }
+  const nav = `<div class="row"><button class="ghost" data-act="back" ${S.step===1?"disabled":""}>← Atrás</button><span class="spacer"></span><span class="err">${esc(UI.err)}</span>${S.step<4?`<button class="primary big" data-act="next">Siguiente →</button>`:`<button class="brass big" data-act="start">Empezar subasta</button>`}</div>`;
+  return header("Configuración de la partida") + steps + body + nav;
+}
+
+/* ---------- Juego ---------- */
+function untilNext(n){ const r = n - (S.sales % n); return r; }
+function viewGame(){
+  const th = THEMES[S.theme];
+  const top = `<div class="top">${header(`${th.label} · ${S.postores.length} postores`)}
+    <div class="counters"><div class="counter"><small>Ventas</small><b>${S.sales}</b></div><div class="counter"><small>Intercambios en</small><b>${untilNext(10)}</b></div><div class="counter"><small>Ruleta en</small><b>${untilNext(15)}</b></div><div class="counter"><small>En mercado</small><b>${S.market.length}</b></div></div>
+    <div class="row"><button data-act="openLog">Registro (${S.log.length})</button>${UI.confirmEnd?`<span class="inline-confirm">¿Terminar el juego y pasar a la votación? <button class="sm danger" data-act="endGame">Sí, terminar</button><button class="sm" data-act="cancelEnd">Cancelar</button></span>`:`<button class="danger" data-act="askEnd" ${S.cur?.open?"disabled":""}>Terminar juego</button>`}</div></div>`;
+  return top + `<div class="board"><section class="stage">${viewStage()}</section><section class="bidders">${S.postores.map(viewPostor).join("")}</section></div>`;
+}
+function fichaFacts(f){
+  if (f.r==null) return f.desc?`<p class="tray" style="margin:0">${esc(f.desc)}</p>`:"";
+  return `<div class="facts"><div class="fact"><small>Posición</small><span>${esc(f.pos)}</span></div><div class="fact"><small>Equipo</small><span>${esc(f.team)}</span></div><div class="fact"><small>Estatura</small><span>${f.h} m</span></div><div class="fact"><small>País</small><span>${esc(f.nat)}</span></div></div><p class="tray" style="margin:0"><b>Trayectoria:</b> ${esc(f.tray)}</p>`;
+}
+function viewStage(){
+  if (S.sold){
+    const f=F(S.sold.fid);
+    if (S.sold.none) return `<div class="lotcard"><div class="eyebrow">Sin pujas</div><div class="name">${esc(f.name)}</div><p style="margin:0">Nadie pujó. Vuelve al final del mercado.</p><div><button class="primary big" data-act="continue">${contLabel()}</button></div></div>`;
+    const p=P(S.sold.pid); let cmp="";
+    if (f.mkt!=null){
+      const ratio=S.sold.amt/f.mkt; const v = ratio<0.8?["good","Ganga"]:ratio<=1.2?["","Precio justo"]:["bad","Pagó de más"];
+      cmp = `<div class="compare"><div><small class="eyebrow">Precio pagado</small><b>${fmt(S.sold.amt)}</b></div><div><small class="eyebrow">Mercado sugerido</small><b>${fmt(f.mkt)}</b></div></div><div><span class="chip ${v[0]}">${v[1]}</span> <span class="muted" style="font-size:13px">Precio de mercado calculado con la calidad del jugador y el dinero inicial (${fmt(S.cash0)}).</span></div>`;
+    } else cmp = `<div class="compare"><div><small class="eyebrow">Precio pagado</small><b>${fmt(S.sold.amt)}</b></div><div><small class="eyebrow">Venta nº</small><b>${S.sales}</b></div></div>`;
+    return `<div class="lotcard"><div class="sold-banner">¡Vendido!</div><div class="name">${esc(f.name)}</div><p style="margin:0;font-size:18px">para <b>${esc(p.name)}</b></p>${cmp}<div><button class="primary big" data-act="continue">${contLabel()}</button></div></div>`;
+  }
+  if (S.cur){
+    const f=F(S.cur.fid); const hb=S.cur.bids[S.cur.bids.length-1];
+    if (!S.cur.open) return `<div class="lotcard"><div class="eyebrow">Próxima ficha ${f.legend?'· <span class="chip brass">Leyenda</span>':""}</div><div class="name">${esc(f.name)}</div>${fichaFacts(f)}<div class="row"><button class="brass big" data-act="openAuction">Abrir subasta</button><button class="ghost" data-act="returnCur">Devolver al mercado</button></div><p class="muted" style="margin:0;font-size:13px">Al abrir hay ${S.firstSecs} s para la primera puja. Cada puja nueva reinicia ${S.bidSecs} s.</p></div>`;
+    return `<div class="lotcard"><div class="eyebrow">En subasta ${S.cur.paused?'· <span class="chip bad">Pausada</span>':""}</div><div class="name">${esc(f.name)}</div>${fichaFacts(f)}
+      <div class="auction"><div class="clock" id="clock"><div id="clockN">–</div></div><div class="highbid"><small class="eyebrow">Puja más alta</small><div class="amt">${hb?fmt(hb.amt):"—"}</div><div class="who">${hb?esc(P(hb.pid).name):"Esperando la primera puja"}</div></div></div>
+      <div class="row"><button data-act="pause">${S.cur.paused?"Reanudar":"Pausar"}</button><button class="brass" data-act="hammer" ${hb?"":"disabled"}>Adjudicar ya</button><button class="ghost danger" data-act="cancelAuction">Cancelar subasta</button></div>
+      ${S.cur.bids.length?`<div class="muted" style="font-size:13px">Pujas: ${S.cur.bids.slice(-6).map(b=>`${esc(P(b.pid).name)} ${fmt(b.amt)}`).join(" → ")}</div>`:""}</div>`;
+  }
+  const blocked = S.pending.length>0;
+  return `<div class="lotcard"><div class="eyebrow">Mercado</div><h2 class="display" style="font-size:32px">Elige la próxima ficha</h2>
+    <div class="row"><button class="brass big" data-act="randomPick" ${S.market.length&&!blocked?"":"disabled"}>Ficha al azar</button><span class="muted">${S.market.length} en el mercado</span></div>
+    <div class="market">${S.market.length?S.market.map(id=>{const f=F(id);return `<div class="mitem"><div><b>${esc(f.name)}</b> ${f.legend?'<span class="chip brass">Leyenda</span>':""}<small>${f.r!=null?`${esc(f.pos)} · ${esc(f.team)} · ${f.h} m`:esc(f.desc||"Personaje")}</small></div><button class="sm" data-act="pickF" data-id="${id}">Subastar</button></div>`}).join(""):`<p class="muted">El mercado está vacío. Añade más fichas o termina el juego.</p>`}</div>
+    <details><summary class="muted" style="cursor:pointer">Añadir una ficha nueva al mercado</summary><div class="row" style="margin-top:8px;align-items:flex-end"><label style="flex:1 1 160px">Nombre<input id="n-name" data-keep="no"></label><label style="flex:1 1 160px">Descripción<input id="n-desc" data-keep="no"></label><button data-act="addMarket">Añadir</button></div></details></div>`;
+}
+function contLabel(){ const e=S.pending[0]; return e==="ruleta"?"Continuar a la ruleta →":e==="break"?"Continuar a los intercambios →":"Siguiente ficha →"; }
+function teamList(p){
+  if (!p.fichas.length) return `<p class="empty-team" style="margin:0">Sin fichas todavía</p>`;
+  return `<ul class="team">${p.fichas.map(id=>{const f=F(id);
+    const paid = f.acq==="compra"?fmt(f.paid):f.acq==="robo"?"robado":"intercambio";
+    return `<li><span class="t-name">${esc(f.name)}${f.pos?`<small>${esc(f.pos)}</small>`:""}</span><span class="t-val"><em>Pagó</em>${paid}</span>${isSport()?`<span class="t-val"><em>Mercado</em>${f.mkt!=null?fmt(f.mkt):"—"}</span>`:""}</li>`}).join("")}</ul>`;
+}
+function viewPostor(p){
+  const open = S.cur?.open && !S.cur.paused; const hb=S.cur?.bids[S.cur.bids.length-1];
+  const lead = hb && hb.pid===p.id;
+  const tv = p.fichas.reduce((s,id)=>s+valueOf(F(id)),0);
+  return `<article class="prow ${lead?"lead":""}" id="row-${p.id}"><div class="phead"><span class="pname">${esc(p.name)}</span><span class="pcash">${fmt(p.cash)}</span>${lead?'<span class="chip brass">Va ganando</span>':""}
+    <div class="bidbox"><input id="bid-${p.id}" type="number" min="1" step="1" inputmode="numeric" placeholder="Cantidad" data-keep="${open?"":"no"}" ${open?"":"disabled"} data-enter="bid" data-id="${p.id}"><button class="primary" data-act="bid" data-id="${p.id}" ${open?"":"disabled"}>Pujar</button></div></div>
+    ${teamList(p)}<div class="pfoot"><span>${p.fichas.length} ${p.fichas.length===1?"ficha":"fichas"}</span><span>${isSport()?"Valor de mercado":"Valor pagado"} del equipo: <b class="mono">${fmt(tv)}</b></span><span>Capital: <b class="mono">${fmt(tv+p.cash)}</b></span></div></article>`;
+}
+
+/* ---------- Subasta ---------- */
+function pickFicha(id){
+  if (S.cur || S.sold || S.pending.length) return;
+  S.market = S.market.filter(x=>x!==id); S.cur={fid:id, bids:[], open:false, paused:false}; render();
+}
+function openAuction(){ S.cur.open=true; S.cur.paused=false; S.cur.deadline=now()+S.firstSecs*1000; render(); $("#bid-"+S.postores[0].id)?.focus(); }
+function placeBid(pid){
+  const c=S.cur; if(!c?.open || c.paused) return;
+  const input=$("#bid-"+pid); const amt=Math.floor(Number(input?.value));
+  const p=P(pid); const hb=c.bids[c.bids.length-1];
+  const fail = m => { input.setCustomValidity(m); input.reportValidity(); setTimeout(()=>input.setCustomValidity(""),1500); };
+  if (!amt || amt<1) return fail("Escribe una cantidad mayor que 0.");
+  if (hb && amt<=hb.amt) return fail(`Tiene que superar ${fmt(hb.amt)}.`);
+  if (amt>p.cash) return fail(`${p.name} solo tiene ${fmt(p.cash)}.`);
+  if (hb && hb.pid===pid) return fail(`${p.name} ya va ganando.`);
+  c.bids.push({pid, amt}); c.deadline=now()+S.bidSecs*1000; input.value=""; UI.flash=pid; render();
+}
+function closeAuction(){
+  const c=S.cur; if(!c) return; const f=F(c.fid); const hb=c.bids[c.bids.length-1];
+  if (hb){
+    const p=P(hb.pid); p.cash-=hb.amt; p.fichas.push(f.id); f.owner=p.id; f.acq="compra"; f.paid=hb.amt; f.value=hb.amt;
+    S.sales++; S.sold={fid:f.id, pid:p.id, amt:hb.amt};
+    log("Compra", `${p.name} compra a ${f.name} por ${fmt(hb.amt)}${f.mkt!=null?` (mercado sugerido ${fmt(f.mkt)})`:""}.`);
+    if (S.sales%15===0) S.pending.push("ruleta");
+    if (S.sales%10===0) S.pending.push("break");
+  } else {
+    S.market.push(f.id); S.sold={fid:f.id, none:true}; log("Sin pujas", `${f.name} no recibió pujas y vuelve al mercado.`);
+  }
+  S.cur=null; render();
+}
+function continueFlow(){
+  S.sold=null; const e=S.pending.shift();
+  if (e==="ruleta"){ S.rulRound++; S.rul={order:shuffle(S.postores.map(p=>p.id)), idx:0, stage:"main", sub:null, result:null}; UI.rot=0; }
+  if (e==="break"){ S.brkRound++; S.brk={deadline:now()+S.breakSecs*1000, paused:false, over:false, done:[]}; UI.T=null; }
+  render();
+}
+function tick(){
+  const c=S.cur;
+  if (c?.open){
+    const total = (c.bids.length?S.bidSecs:S.firstSecs)*1000;
+    const rem = c.paused ? c.remaining : c.deadline-now();
+    const el=$("#clockN"), ring=$("#clock");
+    if (el){ el.textContent = Math.max(0,rem/1000).toFixed(1); ring.style.setProperty("--p", Math.max(0,Math.min(1,rem/total))); ring.classList.toggle("hot", rem<2000); }
+    if (!c.paused && rem<=0) closeAuction();
+  }
+  const b=S.brk;
+  if (b && !b.over){
+    const rem = b.paused ? b.remaining : b.deadline-now();
+    const el=$("#brkClock"); if(el){ const s=Math.max(0,Math.ceil(rem/1000)); el.textContent=`${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`; }
+    if (!b.paused && rem<=0){ b.over=true; render(); }
+  }
+}
+
+/* ---------- Ruleta ---------- */
+const MAIN = [
+  {k:"gana", label:"Ganar dinero", w:35, c:"--w1"},
+  {k:"pierde", label:"Perder dinero", w:30, c:"--w2"},
+  {k:"ficha", label:"Perder ficha", w:30, c:"--w3"},
+  {k:"robo", label:"Robar ficha", w:5, c:"--w4"},
+];
+function wheelSegs(){
+  const R=S.rul; if(!R) return null;
+  if (R.stage==="main") return MAIN.map(m=>({label:m.label, w:m.w, c:m.c}));
+  if (R.stage==="sub") return R.sub.items.map((it,i)=>({label:it.label, w:1, c:i%2?"--s2":"--s1"}));
+  return UI.lastSegs;
+}
+function weighted(segs){ const tot=segs.reduce((s,x)=>s+x.w,0); let r=Math.random()*tot; for(let i=0;i<segs.length;i++){ r-=segs[i].w; if(r<0) return i; } return segs.length-1; }
+function drawWheel(cv, segs, rot){
+  const css=getComputedStyle(document.documentElement); const dpr=window.devicePixelRatio||1;
+  const size=cv.clientWidth||300; cv.width=size*dpr; cv.height=size*dpr;
+  const ctx=cv.getContext("2d"); ctx.scale(dpr,dpr); const r=size/2; const tot=segs.reduce((s,x)=>s+x.w,0);
+  ctx.translate(r,r); ctx.rotate(rot); let a=-Math.PI/2;
+  segs.forEach(s=>{ const span=s.w/tot*Math.PI*2; ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0,r-4,a,a+span); ctx.closePath();
+    ctx.fillStyle=css.getPropertyValue(s.c).trim(); ctx.fill(); ctx.strokeStyle=css.getPropertyValue("--surface").trim(); ctx.lineWidth=2; ctx.stroke();
+    ctx.save(); ctx.rotate(a+span/2); ctx.textAlign="right"; ctx.textBaseline="middle"; ctx.fillStyle="#FFFFFF";
+    const fs = Math.max(10, Math.min(16, span*r*0.35)); ctx.font=`700 ${fs}px Archivo, sans-serif`;
+    let t=s.label; while(ctx.measureText(t).width > r*0.68 && t.length>3) t=t.slice(0,-2)+"…";
+    ctx.fillText(t, r-16, 0); ctx.restore(); a+=span; });
+  ctx.beginPath(); ctx.arc(0,0,r*0.13,0,Math.PI*2); ctx.fillStyle=css.getPropertyValue("--surface").trim(); ctx.fill();
+}
+function drawWheelIfAny(){ const cv=$("#wheel"); const segs=wheelSegs(); if(cv&&segs) drawWheel(cv,segs,UI.rot); }
+function spin(){
+  if (UI.spinning) return; const segs=wheelSegs(); if(!segs) return;
+  const idx = S.rul.stage==="main" ? weighted(segs) : Math.floor(Math.random()*segs.length);
+  const tot=segs.reduce((s,x)=>s+x.w,0); let start=0; for(let i=0;i<idx;i++) start+=segs[i].w/tot*Math.PI*2;
+  const span=segs[idx].w/tot*Math.PI*2; const target = start + span*(0.2+Math.random()*0.6);
+  const from=UI.rot; let delta = ((-target - from) % (Math.PI*2) + Math.PI*2) % (Math.PI*2);
+  const to = from + delta + Math.PI*2*(reduced?1:5); const dur = reduced?500:4200; const t0=performance.now();
+  UI.lastSegs=segs; UI.spinning=true; const btn=$("#spinBtn"); if(btn) btn.disabled=true;
+  const cv=$("#wheel");
+  const step = t => { const k=Math.min(1,(t-t0)/dur); const e=1-Math.pow(1-k,3); UI.rot=from+(to-from)*e; drawWheel(cv,segs,UI.rot);
+    if (k<1) requestAnimationFrame(step); else { UI.spinning=false; UI.rot = to % (Math.PI*2); onSpinEnd(idx); } };
+  requestAnimationFrame(step);
+}
+function onSpinEnd(idx){
+  const R=S.rul; const p=P(R.order[R.idx]);
+  if (R.stage==="main"){
+    const k=MAIN[idx].k;
+    if (k==="gana"){ const amt=nice(S.cash0*pick([.05,.1,.15,.2])); p.cash+=amt; R.result=`${p.name} gana ${fmt(amt)}.`; R.stage="done"; log("Ruleta", `${p.name} gana ${fmt(amt)} en la ruleta.`); }
+    else if (k==="pierde"){ const amt=Math.min(p.cash, nice(S.cash0*pick([.05,.1,.15,.2]))); p.cash-=amt; R.result=amt?`${p.name} pierde ${fmt(amt)}.`:`${p.name} tenía que perder dinero, pero no tiene efectivo.`; R.stage="done"; log("Ruleta", `${p.name} pierde ${fmt(amt)} en la ruleta.`); }
+    else if (k==="ficha"){
+      if (!p.fichas.length){ R.result=`${p.name} tenía que perder una ficha, pero no tiene ninguna. Se salva.`; R.stage="done"; log("Ruleta", `${p.name} sacó "Perder ficha" sin tener fichas.`); }
+      else { R.stage="sub"; R.sub={kind:"pierde", title:`Ruleta de fichas de ${p.name}: la que salga vuelve al mercado`, items:p.fichas.map(id=>({id, label:F(id).name}))}; R.result=`Perder ficha. Ahora gira la ruleta con las fichas de ${p.name}.`; }
+    } else {
+      const vict=S.postores.filter(x=>x.id!==p.id && x.fichas.length);
+      if (!vict.length){ R.result=`¡Robo! Pero ningún otro postor tiene fichas. No hay nada que robar.`; R.stage="done"; log("Ruleta", `${p.name} sacó "Robar" pero nadie más tenía fichas.`); }
+      else { R.stage="sub"; R.sub={kind:"victima", title:`¿A quién le roba ${p.name}?`, items:vict.map(v=>({id:v.id, label:v.name}))}; R.result=`¡Robar ficha! Gira la ruleta de postores para ver a quién le roba ${p.name}.`; }
+    }
+  } else {
+    const it=R.sub.items[idx];
+    if (R.sub.kind==="pierde"){
+      const f=F(it.id); p.fichas=p.fichas.filter(x=>x!==f.id); f.owner=null; S.market.push(f.id);
+      R.result=`${p.name} pierde a ${f.name}. Vuelve al mercado.`; R.stage="done"; log("Ficha perdida", `${p.name} pierde a ${f.name} en la ruleta; vuelve al mercado.`);
+    } else if (R.sub.kind==="victima"){
+      const v=P(it.id); R.sub={kind:"botin", victim:v.id, title:`Ruleta de fichas de ${v.name}: ${p.name} se lleva la que salga`, items:v.fichas.map(id=>({id, label:F(id).name}))};
+      R.result=`${p.name} le roba a ${v.name}. Gira para ver qué ficha se lleva.`;
+    } else {
+      const v=P(R.sub.victim); const f=F(it.id); v.fichas=v.fichas.filter(x=>x!==f.id); p.fichas.push(f.id); f.owner=p.id; f.acq="robo"; f.paid=0;
+      R.result=`¡${p.name} le roba ${f.name} a ${v.name}!`; R.stage="done"; log("Robo", `${p.name} le roba ${f.name} a ${v.name} en la ruleta${f.mkt!=null?` (mercado ${fmt(f.mkt)})`:""}.`);
+    }
+  }
+  if (R.stage!=="done") UI.rot=0; render();
+}
+function nextSpinner(){ const R=S.rul; R.idx++; R.stage="main"; R.sub=null; R.result=null; UI.rot=0; UI.lastSegs=null; if(R.idx>=R.order.length){ S.rul=null; finishEvent(); } else render(); }
+function finishEvent(){ if (S.pending.length) continueFlow(); else render(); }
+function viewRuleta(){
+  const R=S.rul; const p=P(R.order[R.idx]); const segs=wheelSegs();
+  const order=`<div class="order">${R.order.map((id,i)=>`<span class="${i<R.idx?"done":i===R.idx?"now":""}">${esc(P(id).name)}</span>`).join("")}</div>`;
+  const legend = R.stage==="main" ? `<div class="legend">${MAIN.map(m=>`<div><i style="background:var(${m.c})"></i>${m.label} <span class="muted mono">${m.w}%</span></div>`).join("")}</div>` : `<p class="eyebrow" style="margin:0">${esc(R.sub?.title||"")}</p>`;
+  const last = R.idx===R.order.length-1;
+  return `<div class="sheet"><div class="row"><div><div class="eyebrow">Ruleta nº ${S.rulRound} · tras la venta ${S.sales}</div><h2>Gira ${esc(p.name)}</h2></div><span class="spacer"></span><span class="pcash">${fmt(p.cash)} · ${p.fichas.length} fichas</span></div>
+    ${order}
+    <div class="wheel-wrap"><div class="wheel-box">${segs?`<canvas id="wheel" aria-label="Ruleta"></canvas><div class="pin"></div>`:""}</div>
+    <div style="display:flex;flex-direction:column;gap:14px">${legend}${R.result?`<div class="result">${esc(R.result)}</div>`:""}
+      <div class="row">${R.stage!=="done"?`<button class="brass big" id="spinBtn" data-act="spin">Girar ruleta</button>`:`<button class="primary big" data-act="nextSpinner">${last?"Terminar ruleta":"Siguiente postor →"}</button>`}</div></div></div></div>`;
+}
+
+/* ---------- Intercambios ---------- */
+function newTrade(){ const ps=S.postores; return {a:ps[0].id, b:ps[1].id, aF:[], bF:[], aM:0, bM:0, aOK:false, bOK:false}; }
+function tradeSummary(T){
+  const A=P(T.a), B=P(T.b);
+  const side = (fs,m) => [...fs.map(id=>F(id).name), m>0?fmt(m):null].filter(Boolean).join(" + ") || "nada";
+  return `${A.name} entrega ${side(T.aF,T.aM)} a ${B.name}; ${B.name} entrega ${side(T.bF,T.bM)} a ${A.name}`;
+}
+function tradeError(T){
+  if (T.a===T.b) return "Elige dos postores distintos.";
+  if (!T.aF.length && !T.bF.length && !T.aM && !T.bM) return "El intercambio está vacío.";
+  if (T.aM>P(T.a).cash) return `${P(T.a).name} no tiene ${fmt(T.aM)}.`;
+  if (T.bM>P(T.b).cash) return `${P(T.b).name} no tiene ${fmt(T.bM)}.`;
+  return "";
+}
+function execTrade(){
+  const T=UI.T; if(!T || S.brk.over) return; const e=tradeError(T); if(e || !T.aOK || !T.bOK) return;
+  const A=P(T.a), B=P(T.b);
+  T.aF.forEach(id=>{ A.fichas=A.fichas.filter(x=>x!==id); B.fichas.push(id); const f=F(id); f.owner=B.id; f.acq="intercambio"; f.paid=0; });
+  T.bF.forEach(id=>{ B.fichas=B.fichas.filter(x=>x!==id); A.fichas.push(id); const f=F(id); f.owner=A.id; f.acq="intercambio"; f.paid=0; });
+  A.cash += T.bM - T.aM; B.cash += T.aM - T.bM;
+  S.trades++; const txt=tradeSummary(T); S.brk.done.push(txt);
+  log("Intercambio", `Intercambio nº ${S.trades}: ${txt}. Confirmado por ${A.name} y ${B.name}.`);
+  UI.T=newTrade(); UI.T.a=A.id; UI.T.b=B.id; render();
+}
+function viewBreak(){
+  const b=S.brk; if(!UI.T) UI.T=newTrade(); const T=UI.T; const A=P(T.a), B=P(T.b);
+  const opts = sel => S.postores.map(p=>`<option value="${p.id}" ${p.id===sel?"selected":""}>${esc(p.name)}</option>`).join("");
+  const side = (key,P0,fs,m,ok) => `<div class="side"><label>Postor<select id="t-${key}" data-in="tp" data-k="${key}">${opts(P0.id)}</select></label>
+    <div class="muted" style="font-size:13px">Efectivo: <b class="mono">${fmt(P0.cash)}</b></div>
+    <div><div class="eyebrow">Entrega fichas</div><div class="checks">${P0.fichas.length?P0.fichas.map(id=>`<label><input type="checkbox" data-in="tf" data-k="${key}" data-id="${id}" ${fs.includes(id)?"checked":""}>${esc(F(id).name)}${isSport()?` <span class="muted mono" style="font-size:12px">${fmt(F(id).mkt)}</span>`:""}</label>`).join(""):`<span class="muted" style="font-size:13px">Sin fichas</span>`}</div></div>
+    <label>Entrega dinero<input id="t-${key}M" type="number" min="0" step="1" data-in="tm" data-keep="no" data-k="${key}" value="${m||""}" placeholder="0"></label>
+    <label class="confirm"><input type="checkbox" data-in="tok" data-k="${key}" ${ok?"checked":""}> ${esc(P0.name)} confirma</label></div>`;
+  const err = tradeError(T);
+  return `<div class="sheet"><div class="row"><div><div class="eyebrow">Descanso nº ${S.brkRound} · tras la venta ${S.sales}</div><h2>Intercambios</h2></div><span class="spacer"></span><div class="bigclock ${b.over?"over":""}" id="brkClock">${b.over?"0:00":""}</div></div>
+    ${b.over?`<div class="result">Se acabó el tiempo. Ya no se pueden cerrar más intercambios.</div>`:`<p class="muted" style="margin:0">La casa de subasta arma el trato. Los dos postores deben confirmar antes de ejecutarlo. Cambiar algo borra las confirmaciones.</p>`}
+    ${b.over?"":`<div class="trade">${side("a",A,T.aF,T.aM,T.aOK)}${side("b",B,T.bF,T.bM,T.bOK)}</div>
+    <div class="summary">${esc(tradeSummary(T))}.</div>
+    <div class="row"><span class="err">${esc(err || (!T.aOK||!T.bOK?"Faltan las confirmaciones de ambos postores.":""))}</span><span class="spacer"></span><button class="primary big" data-act="execTrade" ${err||!T.aOK||!T.bOK?"disabled":""}>Ejecutar intercambio</button></div>`}
+    ${b.done.length?`<div><div class="eyebrow">Hechos en este descanso</div><ol style="margin:6px 0 0;padding-left:20px">${b.done.map(t=>`<li>${esc(t)}</li>`).join("")}</ol></div>`:""}
+    <div class="row"><button data-act="brkPause" ${b.over?"disabled":""}>${b.paused?"Reanudar reloj":"Pausar reloj"}</button><span class="spacer"></span><button class="brass big" data-act="endBreak">Volver a la subasta →</button></div></div>`;
+}
+
+/* ---------- Registro ---------- */
+function logText(){
+  const th=THEMES[S.theme]?.label||"";
+  return [`CASA DE SUBASTA · Registro de transacciones · ${th}`, `Dinero inicial: ${fmt(S.cash0)} · Postores: ${S.postores.map(p=>p.name).join(", ")}`, "",
+    ...S.log.map(l=>`#${l.n}  ${l.t}  [venta ${l.venta}]  ${l.kind.toUpperCase()}: ${l.text}`), "",
+    "Estado actual:", ...S.postores.map(p=>`- ${p.name}: ${fmt(p.cash)} en efectivo · ${p.fichas.map(id=>F(id).name).join(", ")||"sin fichas"}`)].join("\n");
+}
+function viewLog(){
+  return `<div class="sheet"><div class="row"><div><div class="eyebrow">Documento de transacciones</div><h2>Registro</h2></div><span class="spacer"></span><button data-act="copyLog">Copiar</button><button data-act="dlLog" id="dlBtn">Descargar .txt</button><button class="primary" data-act="closeLog">Cerrar</button></div>
+    <span class="muted" id="logMsg" style="font-size:13px">Compras, intercambios, robos y resultados de la ruleta, en orden.</span>
+    <div class="log">${S.log.length?[...S.log].reverse().map(l=>`<div><span class="mono muted">#${l.n}</span><span class="mono muted tm">${l.t}</span><span class="k">${esc(l.kind)}</span><span class="tx">${esc(l.text)}</span></div>`).join(""):`<div><span></span><span></span><span></span><span class="muted">Todavía no hay movimientos.</span></div>`}</div></div>`;
+}
+
+function renderOverlay(){
+  const ov=$("#ov"); let h="";
+  if (UI.logOpen) h=viewLog();
+  else if (S.phase==="game" && S.rul) h=viewRuleta();
+  else if (S.phase==="game" && S.brk) h=viewBreak();
+  ov.innerHTML = h ? `<div class="ov">${h}</div>` : "";
+}
+
+/* ---------- Final ---------- */
+function rankList(items){ // items: [{id, val}], mayor es mejor → [{id,val,rank}]
+  const s=[...items].sort((a,b)=>b.val-a.val); let last=null, rank=0;
+  return s.map((x,i)=>{ if(x.val!==last){ rank=i+1; last=x.val; } return {...x, rank}; });
+}
+function capitalOf(p){ return p.cash + p.fichas.reduce((s,id)=>s+valueOf(F(id)),0); }
+function voters(){ return [...S.postores.map(p=>({id:p.id, name:p.name})), {id:"casa", name:"Casa de Subasta"}]; }
+function viewFinal(){
+  const fin=S.fin; const vs=voters(); const allVoted = vs.every(v=>fin.votes[v.id]);
+  const counts={}; S.postores.forEach(p=>counts[p.id]=0); Object.values(fin.votes).forEach(t=>{ if(counts[t]!=null) counts[t]++; });
+  const voteR = rankList(S.postores.map(p=>({id:p.id, val:counts[p.id]})));
+  const capR = rankList(S.postores.map(p=>({id:p.id, val:capitalOf(p)})));
+  const aiR = fin.ai ? rankList(fin.ai.ranking.map(r=>({id:r.id, val:-r.puesto}))) : null;
+  const top = r => r.filter(x=>x.rank===1).map(x=>esc(P(x.id).name)).join(" y ");
+
+  const voteBox = `<div class="panel cat"><div class="eyebrow">Categoría 1</div><h2 class="display" style="font-size:28px">Votación</h2>
+    <p class="muted" style="margin:0;font-size:13px">Cada postor vota por otro postor. La casa de subasta también vota.</p>
+    <div class="votes">${vs.map(v=>`<label>${esc(v.name)}<select id="v-${v.id}" data-in="vote" data-id="${v.id}"><option value="">Elegir…</option>${S.postores.filter(p=>p.id!==v.id).map(p=>`<option value="${p.id}" ${fin.votes[v.id]===p.id?"selected":""}>${esc(p.name)}</option>`).join("")}</select></label>`).join("")}</div>
+    ${allVoted?`<div class="winner">${top(voteR)}</div><table><tbody>${voteR.map(x=>`<tr><td class="n">${x.rank}º</td><td>${esc(P(x.id).name)}</td><td class="n">${x.val} ${x.val===1?"voto":"votos"}</td></tr>`).join("")}</tbody></table>`:`<p class="muted" style="margin:0">Faltan ${vs.filter(v=>!fin.votes[v.id]).length} votos.</p>`}</div>`;
+
+  const capBox = `<div class="panel cat"><div class="eyebrow">Categoría ${isSport()?3:2}</div><h2 class="display" style="font-size:28px">Mayor capital</h2>
+    <p class="muted" style="margin:0;font-size:13px">${isSport()?"Valor de mercado de sus fichas + efectivo final.":"Precio pagado en subasta por sus fichas + efectivo final (en Libre no hay precio de mercado)."}</p>
+    <div class="winner">${top(capR)}</div><table><tbody>${capR.map(x=>{const p=P(x.id);return `<tr><td class="n">${x.rank}º</td><td>${esc(p.name)}</td><td class="n">${fmt(x.val)}<br><span class="muted" style="font-size:11px">${fmt(p.cash)} efectivo</span></td></tr>`}).join("")}</tbody></table></div>`;
+
+  let aiBox="";
+  if (isSport()){
+    aiBox = `<div class="panel cat"><div class="eyebrow">Categoría 2</div><h2 class="display" style="font-size:28px">Ranking de Claude</h2>
+      ${fin.ai?`<div class="winner">${top(aiR)}</div>${fin.ai.auto?`<span class="chip">Ranking automático por calidad, no de Claude</span>`:""}<div>${[...fin.ai.ranking].sort((a,b)=>a.puesto-b.puesto).map(r=>`<div class="ai-item"><b>${r.puesto}º</b> <strong>${esc(P(r.id).name)}</strong> <span class="chip">${r.nota}/10</span><div class="muted" style="font-size:14px;margin-top:4px">${esc(r.comentario)}</div></div>`).join("")}</div>${fin.ai.resumen?`<p style="margin:0">${esc(fin.ai.resumen)}</p>`:""}<div><button class="sm ghost" data-act="askAI">Pedir otra opinión</button></div>`
+      :`<p class="muted" style="margin:0;font-size:13px">Claude analiza cada equipo: calidad, equilibrio por posiciones y si alcanza para un ${THEMES[S.theme].unit}.</p>
+        <div class="row"><button class="brass" data-act="askAI" ${fin.aiBusy?"disabled":""}>${fin.aiBusy?"Claude está analizando los equipos…":"Pedir ranking a Claude"}</button></div>
+        ${fin.aiErr?`<p class="err" style="margin:0">${esc(fin.aiErr)}</p><div><button class="sm" data-act="autoAI">Usar ranking automático</button></div>`:""}`}</div>`;
+  }
+
+  const cats=[{k:"votos", name:"Votación", r:allVoted?voteR:null}]; if(isSport()) cats.push({k:"ia", name:"Claude", r:aiR}); cats.push({k:"cap", name:"Capital", r:capR});
+  const n=S.postores.length; const ready=cats.filter(c=>c.r);
+  const gen = rankList(S.postores.map(p=>{ let pts=0; ready.forEach(c=>{ const x=c.r.find(y=>y.id===p.id); pts+=n-x.rank+1; }); return {id:p.id, val:pts*1e9+capitalOf(p)}; }));
+  const pending = cats.filter(c=>!c.r).map(c=>c.name);
+  const genBox = `<div class="panel" style="display:flex;flex-direction:column;gap:12px"><div class="eyebrow">Ranking de postores</div><h2 class="display" style="font-size:34px">Clasificación general</h2>
+    <p class="muted" style="margin:0;font-size:13px">En cada categoría el 1º suma ${n} puntos, el 2º ${n-1} y así. Si empatan en puntos, desempata el capital.${pending.length?` <b>Falta: ${pending.join(", ")}.</b>`:""}</p>
+    <div class="tscroll"><table><thead><tr><th class="n">#</th><th>Postor</th>${cats.map(c=>`<th class="n">${c.name}</th>`).join("")}<th class="n">Puntos</th></tr></thead><tbody>
+    ${gen.map(g=>{const p=P(g.id); let pts=0; return `<tr><td class="n">${g.rank}º</td><td><b>${esc(p.name)}</b><br><span class="muted" style="font-size:12px">${p.fichas.map(id=>F(id).name).join(", ")||"sin fichas"}</span></td>${cats.map(c=>{ if(!c.r) return `<td class="n muted">—</td>`; const x=c.r.find(y=>y.id===p.id); pts+=n-x.rank+1; return `<td class="n">${x.rank}º</td>`; }).join("")}<td class="n"><b>${pts}</b></td></tr>`}).join("")}</tbody></table></div></div>`;
+
+  return `<div class="top">${header(`Fin de la subasta · ${S.sales} ventas`)}<div class="row"><button data-act="openLog">Registro (${S.log.length})</button><button data-act="resume">Volver a la subasta</button>${UI.confirmNew?`<span class="inline-confirm">Se borra esta partida. <button class="sm danger" data-act="newGame">Sí, nueva partida</button><button class="sm" data-act="cancelNew">Cancelar</button></span>`:`<button class="danger" data-act="askNew">Nueva partida</button>`}</div></div>
+    <div class="cats">${voteBox}${aiBox}${capBox}</div>${genBox}
+    <div class="panel"><div class="eyebrow">Equipos finales</div><div class="bidders" style="margin-top:10px">${S.postores.map(p=>`<article class="prow"><div class="phead"><span class="pname">${esc(p.name)}</span><span class="pcash">${fmt(p.cash)}</span></div>${teamList(p)}</article>`).join("")}</div></div>`;
+}
+async function askAI(){
+  const fin=S.fin; fin.aiBusy=true; fin.aiErr=""; render();
+  try{
+    if (!window.claude?.use) throw {code:"standalone"};
+    const sample = await claude.use("sample");
+    if (!sample) throw {code:"unavailable"};
+    const teams = S.postores.map(p=>`- ${p.name} (efectivo sobrante ${fmt(p.cash)}): ${p.fichas.length?p.fichas.map(id=>{const f=F(id);return `${f.name} [${f.pos}, ${f.team}${f.legend?", leyenda":""}]`}).join("; "):"sin jugadores"}`).join("\n");
+    const prompt = `Eres el analista experto de una subasta de ${THEMES[S.theme].sport}. Cada postor armó un equipo comprando jugadores reales (algunos son leyendas históricas, evalúalos en su mejor momento). Decide qué equipo es mejor para competir según: calidad de los jugadores, equilibrio por posiciones, si alcanza para un ${THEMES[S.theme].unit} competitivo, profundidad de banca y química. Un equipo sin jugadores va último.
+
+Equipos:
+${teams}
+
+Responde SOLO con JSON con esta forma exacta (todos los postores, puestos 1..N sin empates, nota de 0 a 10 con un decimal, comentario en español de máximo 2 frases, resumen de 1-2 frases):
+{"ranking":[{"postor":"Nombre exacto","puesto":1,"nota":8.5,"comentario":"..."}],"resumen":"..."}`;
+    const data = await sample.json(prompt, {modelTier:"default"});
+    const list = Array.isArray(data?.ranking) ? data.ranking : [];
+    const ranking = S.postores.map(p=>{ const r=list.find(x=>String(x.postor).trim().toLowerCase()===p.name.trim().toLowerCase()); return {id:p.id, puesto:Number(r?.puesto)||S.postores.length, nota:Number(r?.nota)||0, comentario:String(r?.comentario||"Sin comentario.")}; });
+    fin.ai={ranking, resumen:String(data?.resumen||"")}; log("Ranking", `Claude ordena los equipos: ${[...ranking].sort((a,b)=>a.puesto-b.puesto).map(r=>`${r.puesto}º ${P(r.id).name}`).join(", ")}.`);
+  }catch(e){
+    const m={not_granted:"No se dio permiso para usar Claude en esta página.", rate_limited:"Claude recibió demasiadas peticiones. Espera un momento y vuelve a intentarlo.", invalid_json:"Claude respondió en un formato inesperado. Vuelve a intentarlo.", unavailable:"Claude no está disponible en esta vista.", standalone:"El ranking de Claude solo funciona cuando el juego se abre dentro de claude.ai. Aquí puedes usar el ranking automático."};
+    fin.aiErr = m[e?.code] || "No se pudo obtener el ranking de Claude. Vuelve a intentarlo.";
+  }
+  fin.aiBusy=false; render();
+}
+function autoAI(){
+  const pos = S.theme==="futbol"?{POR:1,DEF:4,MED:3,DEL:3}:{Base:1,Escolta:1,Alero:1,"Ala-pívot":1,"Pívot":1};
+  const scored = S.postores.map(p=>{ const fs=p.fichas.map(F).sort((a,b)=>b.r-a.r); const need={...pos}; let start=[];
+    fs.forEach(f=>{ if(need[f.pos]>0){ need[f.pos]--; start.push(f); } });
+    const size=Object.values(pos).reduce((a,b)=>a+b,0); const avg = start.length? start.reduce((s,f)=>s+f.r,0)/size : 0;
+    return {id:p.id, score:avg, filled:start.length, size}; });
+  const r=rankList(scored.map(s=>({id:s.id, val:s.score})));
+  S.fin.ai={auto:true, resumen:"", ranking:r.map((x,i)=>{const s=scored.find(y=>y.id===x.id); return {id:x.id, puesto:i+1, nota:Math.round(s.score/10*10)/10, comentario:`Titulares cubiertos: ${s.filled} de ${s.size}. Media del ${THEMES[S.theme].unit}: ${s.score.toFixed(1)}.`};})};
+  S.fin.aiErr=""; render();
+}
+
+/* ---------- Acciones ---------- */
+const ACT = {
+  theme:d=>{ if(S.theme!==d.v){ S.theme=d.v; S.selected=poolFor(d.v).filter(f=>!f.legend).map(f=>f.id); } UI.err=""; render(); },
+  selAll:()=>{ S.selected=poolFor(S.theme).map(f=>f.id); render(); },
+  selCur:()=>{ S.selected=poolFor(S.theme).filter(f=>!f.legend).map(f=>f.id); render(); },
+  selLeg:()=>{ S.selected=poolFor(S.theme).filter(f=>f.legend).map(f=>f.id); render(); },
+  selNone:()=>{ S.selected=[]; render(); },
+  addCustom:()=>{ const n=$("#c-name").value.trim(), d=$("#c-desc").value.trim(); if(!n){ UI.err="Escribe el nombre del personaje."; render(); return; } S.custom.push({name:n, desc:d}); UI.err=""; render(); $("#c-name").focus(); },
+  addBulk:()=>{ $("#c-bulk").value.split("\n").map(s=>s.trim()).filter(Boolean).forEach(n=>S.custom.push({name:n, desc:""})); render(); },
+  delCustom:d=>{ S.custom.splice(+d.i,1); render(); },
+  addPostor:()=>{ const p={id:uid("p"), name:"", cash:0, fichas:[]}; S.postores.push(p); render(); $("#pn-"+p.id)?.focus(); },
+  delPostor:d=>{ S.postores=S.postores.filter(p=>p.id!==d.id); render(); },
+  back:()=>{ S.step=Math.max(1,S.step-1); UI.err=""; render(); },
+  next:()=>{ const e=validateStep(); UI.err=e; if(!e){ S.step++; if(S.step===3 && !S.postores.length){ for(let i=0;i<2;i++) S.postores.push({id:uid("p"), name:"", cash:0, fichas:[]}); } } render(); },
+  start:()=>{ const e=validateStep(); UI.err=e; if(e){ render(); return; } startGame(); },
+  pickF:d=>pickFicha(d.id),
+  randomPick:()=>{ if(S.market.length) pickFicha(pick(S.market)); },
+  returnCur:()=>{ S.market.unshift(S.cur.fid); S.cur=null; render(); },
+  openAuction, bid:d=>placeBid(d.id),
+  pause:()=>{ const c=S.cur; if(c.paused){ c.paused=false; c.deadline=now()+c.remaining; } else { c.remaining=Math.max(0,c.deadline-now()); c.paused=true; } render(); },
+  hammer:()=>closeAuction(),
+  cancelAuction:()=>{ S.market.unshift(S.cur.fid); log("Cancelada", `Se canceló la subasta de ${F(S.cur.fid).name}; vuelve al mercado.`); S.cur=null; render(); },
+  continue:continueFlow,
+  addMarket:()=>{ const n=$("#n-name").value.trim(); if(!n) return; const id=uid("x"); S.fichas[id]={id, name:n, desc:$("#n-desc").value.trim(), r:null, mkt:null, owner:null}; S.market.push(id); log("Mercado", `La casa añade a ${n} al mercado.`); render(); },
+  spin, nextSpinner,
+  execTrade, brkPause:()=>{ const b=S.brk; if(b.paused){ b.paused=false; b.deadline=now()+b.remaining; } else { b.remaining=Math.max(0,b.deadline-now()); b.paused=true; } render(); },
+  endBreak:()=>{ S.brk=null; UI.T=null; finishEvent(); },
+  openLog:()=>{ UI.logOpen=true; render(); }, closeLog:()=>{ UI.logOpen=false; render(); },
+  copyLog:async()=>{ const t=logText(); try{ await navigator.clipboard.writeText(t); $("#logMsg").textContent="Registro copiado."; }catch(e){ $("#logMsg").textContent="No se pudo copiar automáticamente. Usa Descargar."; } },
+  dlLog:async()=>{ const msg=$("#logMsg"); try{ const dl=await claude.use("downloads"); if(!dl) throw 0; await dl.save({filename:"registro-casa-de-subasta.txt", data:logText()}); msg.textContent="Registro descargado."; }catch(e){ try{ const url=URL.createObjectURL(new Blob([logText()],{type:"text/plain;charset=utf-8"})); const l=document.createElement("a"); l.href=url; l.download="registro-casa-de-subasta.txt"; document.body.appendChild(l); l.click(); l.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000); msg.textContent="Registro descargado."; }catch(_){ msg.textContent="La descarga no está disponible aquí. Usa Copiar."; } } },
+  askEnd:()=>{ UI.confirmEnd=true; render(); }, cancelEnd:()=>{ UI.confirmEnd=false; render(); },
+  endGame:()=>{ UI.confirmEnd=false; if(S.cur){ S.market.unshift(S.cur.fid); S.cur=null; } S.sold=null; S.pending=[]; S.rul=null; S.brk=null; S.phase="final"; S.fin=S.fin||{votes:{}, ai:null, aiErr:"", aiBusy:false}; S.fin.aiBusy=false; log("Fin", "La casa de subasta termina el juego."); render(); scrollTo(0,0); },
+  resume:()=>{ S.phase="game"; render(); },
+  askAI, autoAI,
+  askNew:()=>{ UI.confirmNew=true; render(); }, cancelNew:()=>{ UI.confirmNew=false; render(); },
+  newGame:()=>{ S=fresh(); UI.confirmNew=false; render(); scrollTo(0,0); },
+};
+function validateStep(){
+  if (S.step===1 && !S.theme) return "Elige una temática.";
+  if (S.step===2 && S.theme!=="libre" && !S.selected.length) return "Selecciona al menos un jugador.";
+  if (S.step===2 && S.theme==="libre" && !S.custom.length) return "Añade al menos un personaje.";
+  if (S.step===3){
+    S.postores.forEach(p=>p.name=p.name.trim());
+    if (S.postores.length<2) return "Añade al menos 2 postores.";
+    if (S.postores.some(p=>!p.name)) return "Todos los postores necesitan nombre.";
+    const names=S.postores.map(p=>p.name.toLowerCase()); if(new Set(names).size!==names.length) return "Hay dos postores con el mismo nombre.";
+  }
+  if (S.step===4 && !(S.cash0>=1)) return "El dinero inicial debe ser mayor que 0.";
+  return "";
+}
+function startGame(){
+  S.bidSecs=Math.max(2,S.bidSecs||5); S.firstSecs=Math.max(3,S.firstSecs||10); S.breakSecs=Math.max(30,S.breakSecs||120);
+  S.fichas={};
+  if (S.theme==="libre") S.custom.forEach(c=>{ const id=uid("c"); S.fichas[id]={id, name:c.name, desc:c.desc, r:null, mkt:null, owner:null}; });
+  else { const sel=new Set(S.selected); poolFor(S.theme).filter(f=>sel.has(f.id)).forEach(f=>{ S.fichas[f.id]={...f, mkt:marketPrice(f.r,S.cash0), owner:null}; }); }
+  S.postores.forEach(p=>{ p.cash=S.cash0; p.fichas=[]; });
+  S.market=shuffle(Object.keys(S.fichas)); S.phase="game"; S.log=[];
+  log("Inicio", `Empieza la subasta de ${THEMES[S.theme].label} con ${S.postores.length} postores y ${fmt(S.cash0)} cada uno. ${S.market.length} fichas en el mercado.`);
+  UI.err=""; render(); scrollTo(0,0);
+}
+
+document.addEventListener("click", e=>{ const b=e.target.closest("[data-act]"); if(!b || b.disabled) return; const f=ACT[b.dataset.act]; if(f) f(b.dataset, b); });
+document.addEventListener("keydown", e=>{
+  if (e.key!=="Enter") return; const t=e.target;
+  if (t.dataset?.enter==="bid"){ e.preventDefault(); placeBid(t.dataset.id); }
+  else if (t.id==="c-name"||t.id==="c-desc"){ e.preventDefault(); ACT.addCustom(); }
+  else if (t.dataset?.in==="pname"){ e.preventDefault(); ACT.addPostor(); }
+});
+document.addEventListener("input", e=>{
+  const t=e.target, d=t.dataset; if(!d?.in) return;
+  if (d.in==="pname"){ const p=P(d.id); if(p) p.name=t.value; save(); }
+  else if (d.in==="cfg"){ S[d.k]=Math.floor(Number(t.value))||0; save(); }
+  else if (d.in==="tm"){ const T=UI.T; T[d.k+"M"]=Math.max(0,Math.floor(Number(t.value))||0); T.aOK=T.bOK=false; refreshTradeBits(); }
+});
+document.addEventListener("change", e=>{
+  const t=e.target, d=t.dataset; if(!d?.in) return;
+  if (d.in==="sel"){ if(t.checked) S.selected.push(d.id); else S.selected=S.selected.filter(x=>x!==d.id); render(); }
+  else if (d.in==="tp"){ const T=UI.T; T[d.k]=t.value; T[d.k+"F"]=[]; T.aOK=T.bOK=false; render(); }
+  else if (d.in==="tf"){ const T=UI.T, k=d.k+"F"; T[k]=t.checked?[...T[k],d.id]:T[k].filter(x=>x!==d.id); T.aOK=T.bOK=false; render(); }
+  else if (d.in==="tok"){ UI.T[d.k+"OK"]=t.checked; render(); }
+  else if (d.in==="vote"){ if(t.value) S.fin.votes[d.id]=t.value; else delete S.fin.votes[d.id]; render(); }
+});
+function refreshTradeBits(){ // sin re-render para no perder el foco al escribir dinero
+  const T=UI.T; document.querySelectorAll('[data-in="tok"]').forEach(c=>c.checked=false);
+  const s=document.querySelector(".sheet .summary"); if(s) s.textContent=tradeSummary(T)+".";
+  const err=tradeError(T)||"Faltan las confirmaciones de ambos postores."; const el=document.querySelector(".sheet .err"); if(el) el.textContent=err;
+  const b=document.querySelector('[data-act="execTrade"]'); if(b) b.disabled=true;
+}
+
+/* ---------- Arranque ---------- */
+function start(data){
+  const saved = data?.S || load();
+  if (saved && saved.v===1){ S=saved; if(S.cur?.open && !S.cur.paused){ S.cur.paused=true; } if(S.brk && !S.brk.paused && !S.brk.over){ S.brk.paused=true; } if(S.fin) S.fin.aiBusy=false; }
+  render(); setInterval(tick, 100);
+  window.addEventListener("resize", ()=>{ if(!UI.spinning) drawWheelIfAny(); });
+}
+window.claude?.hot?.snapshot?.(()=>{ save(); return {S}; });
+window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
+</script>
+
+</body>
+</html>
