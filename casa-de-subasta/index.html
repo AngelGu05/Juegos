@@ -141,6 +141,11 @@ label{display:flex;flex-direction:column;gap:4px;font-weight:600;font-size:13px}
 .team li .t-val{font-family:var(--f-mono);font-size:13px;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
 .team li .t-val em{font-style:normal;color:var(--muted);font-family:var(--f-body);font-size:11px;margin-right:4px}
 @media (max-width:520px){.team li{grid-template-columns:minmax(0,1fr) auto}.team li .t-name{grid-column:1/-1}}
+.mkt-edit{display:flex;align-items:center;gap:4px}
+.mkt-edit input{font-family:var(--f-mono);font-size:20px;font-weight:700;width:100%;padding:4px 8px;background:var(--surface)}
+.mkt-btn{font:inherit;font-family:var(--f-mono);font-size:13px;padding:0 2px;border:0;border-bottom:1px dashed var(--muted);border-radius:0;background:none;color:var(--ink);font-weight:500}
+.mkt-btn:hover{color:var(--accent);border-bottom-color:var(--accent)}
+.mkt-inline{width:90px;font-family:var(--f-mono);font-size:13px;padding:2px 6px}
 .empty-team{color:var(--muted);font-size:13px;font-style:italic}
 .pfoot{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
 .flash{animation:flash .6s ease-out}
@@ -491,9 +496,9 @@ function viewStage(){
     const f=F(S.sold.fid);
     if (S.sold.none) return `<div class="lotcard"><div class="eyebrow">Sin pujas</div><div class="name">${esc(f.name)}</div><p style="margin:0">Nadie pujó. Vuelve al final del mercado.</p><div><button class="primary big" data-act="continue">${contLabel()}</button></div></div>`;
     const p=P(S.sold.pid); let cmp="";
-    if (f.mkt!=null){
-      const ratio=S.sold.amt/f.mkt; const v = ratio<0.8?["good","Ganga"]:ratio<=1.2?["","Precio justo"]:["bad","Pagó de más"];
-      cmp = `<div class="compare"><div><small class="eyebrow">Precio pagado</small><b>${fmt(S.sold.amt)}</b></div><div><small class="eyebrow">Mercado sugerido</small><b>${fmt(f.mkt)}</b></div></div><div><span class="chip ${v[0]}">${v[1]}</span> <span class="muted" style="font-size:13px">Precio de mercado calculado con la calidad del jugador y el dinero inicial (${fmt(S.cash0)}).</span></div>`;
+    if (isSport()){
+      const ratio=f.mkt?S.sold.amt/f.mkt:1; const v = ratio<0.8?["good","Ganga"]:ratio<=1.2?["","Precio justo"]:["bad","Pagó de más"];
+      cmp = `<div class="compare"><div><small class="eyebrow">Precio pagado</small><b>${fmt(S.sold.amt)}</b></div><div><label class="eyebrow" for="mkt-${f.id}">Mercado sugerido</label><div class="mkt-edit"><span class="mono">$</span><input id="mkt-${f.id}" type="number" min="0" step="1" inputmode="numeric" data-in="mkt" data-id="${f.id}" value="${f.mkt??""}" placeholder="Sin precio" data-keep="no"></div></div></div><div>${f.mkt?`<span class="chip ${v[0]}">${v[1]}</span> `:""}<span class="muted" style="font-size:13px">${f.r!=null?`Sugerido según la calidad del jugador y el dinero inicial (${fmt(S.cash0)}). `:""}La casa de subasta puede cambiarlo aquí o tocando el precio en el equipo del postor.</span></div>`;
     } else cmp = `<div class="compare"><div><small class="eyebrow">Precio pagado</small><b>${fmt(S.sold.amt)}</b></div><div><small class="eyebrow">Venta nº</small><b>${S.sales}</b></div></div>`;
     return `<div class="lotcard"><div class="sold-banner">¡Vendido!</div><div class="name">${esc(f.name)}</div><p style="margin:0;font-size:18px">para <b>${esc(p.name)}</b></p>${cmp}<div><button class="primary big" data-act="continue">${contLabel()}</button></div></div>`;
   }
@@ -524,7 +529,7 @@ function teamList(p){
   if (!p.fichas.length) return `<p class="empty-team" style="margin:0">Sin fichas todavía</p>`;
   return `<ul class="team">${p.fichas.map(id=>{const f=F(id);
     const paid = f.acq==="compra"?fmt(f.paid):f.acq==="robo"?"robado":"intercambio";
-    return `<li><span class="t-name">${esc(f.name)}${f.pos?`<small>${esc(f.pos)}</small>`:""}</span><span class="t-val"><em>Pagó</em>${paid}</span>${isSport()?`<span class="t-val"><em>Mercado</em>${f.mkt!=null?fmt(f.mkt):"—"}</span>`:""}</li>`}).join("")}</ul>`;
+    return `<li><span class="t-name">${esc(f.name)}${f.pos?`<small>${esc(f.pos)}</small>`:""}</span><span class="t-val"><em>Pagó</em>${paid}</span>${isSport()?`<span class="t-val"><em>Mercado</em>${UI.editMkt===f.id?`<input class="mkt-inline" id="mkt-${f.id}" type="number" min="0" step="1" inputmode="numeric" data-in="mkt" data-id="${f.id}" value="${f.mkt??""}" data-keep="no" aria-label="Precio de mercado de ${esc(f.name)}">`:`<button class="mkt-btn" data-act="editMkt" data-id="${f.id}" title="Cambiar precio de mercado">${f.mkt!=null?fmt(f.mkt):"—"}</button>`}</span>`:""}</li>`}).join("")}</ul>`;
 }
 function viewPostor(p){
   const open = S.cur?.open && !S.cur.paused; const hb=S.cur?.bids[S.cur.bids.length-1];
@@ -887,6 +892,11 @@ function addToMarket(list){
   log("Mercado", list.length===1?`La casa añade a ${list[0].name} al mercado.`:`La casa añade ${list.length} fichas al mercado: ${list.map(c=>c.name).join(", ")}.`);
   UI.addMsg = list.length===1?`Añadido: ${list[0].name}.`:`Añadidos ${list.length} personajes.`;
 }
+function setMarket(id, raw){
+  const f=F(id); if(!f) return; const v = raw===""?null:Math.max(0,Math.round(Number(raw)));
+  if (v!==null && !Number.isFinite(v)) return;
+  if (v!==f.mkt){ log("Precio", `La casa ajusta el precio de mercado de ${f.name}: ${f.mkt!=null?fmt(f.mkt):"sin precio"} → ${v!=null?fmt(v):"sin precio"}.`); f.mkt=v; }
+}
 const ACT = {
   theme:d=>{ if(S.theme!==d.v){ S.theme=d.v; S.selected=poolFor(d.v).filter(f=>!f.legend).map(f=>f.id); } UI.err=""; render(); },
   selAll:()=>{ S.selected=poolFor(S.theme).map(f=>f.id); render(); },
@@ -902,6 +912,7 @@ const ACT = {
   next:()=>{ const e=validateStep(); UI.err=e; if(!e){ S.step++; if(S.step===3 && !S.postores.length){ for(let i=0;i<2;i++) S.postores.push({id:uid("p"), name:"", cash:0, fichas:[]}); } } render(); },
   start:()=>{ const e=validateStep(); UI.err=e; if(e){ render(); return; } startGame(); },
   pickF:d=>pickFicha(d.id),
+  editMkt:d=>{ UI.editMkt=d.id; render(); const el=$("#mkt-"+d.id); el?.focus(); el?.select(); },
   randomPick:()=>{ if(S.market.length) pickFicha(pick(S.market)); },
   returnCur:()=>{ S.market.unshift(S.cur.fid); S.cur=null; render(); },
   openAuction, bid:d=>placeBid(d.id),
@@ -950,12 +961,15 @@ function startGame(){
 
 document.addEventListener("click", e=>{ const b=e.target.closest("[data-act]"); if(!b || b.disabled) return; const f=ACT[b.dataset.act]; if(f) f(b.dataset, b); });
 document.addEventListener("keydown", e=>{
-  if (e.key!=="Enter") return; const t=e.target;
+  const t=e.target;
+  if (t.dataset?.in==="mkt"){ if(e.key==="Enter"){ e.preventDefault(); t.blur(); } else if(e.key==="Escape"){ UI.editMkt=null; render(); } return; }
+  if (e.key!=="Enter") return;
   if (t.dataset?.enter==="bid"){ e.preventDefault(); placeBid(t.dataset.id); }
   else if (t.id==="c-name"||t.id==="c-desc"){ e.preventDefault(); ACT.addCustom(); }
   else if (t.id==="n-name"||t.id==="n-desc"){ e.preventDefault(); ACT.addMarket(); }
   else if (t.dataset?.in==="pname"){ e.preventDefault(); ACT.addPostor(); }
 });
+document.addEventListener("focusout", e=>{ if(e.target.classList?.contains("mkt-inline")) setTimeout(()=>{ if(UI.editMkt===e.target.dataset.id && !document.activeElement?.classList.contains("mkt-inline")){ UI.editMkt=null; render(); } },0); });
 document.addEventListener("toggle", e=>{ if(e.target.id==="bulkBox") UI.bulkOpen=e.target.open; }, true);
 document.addEventListener("input", e=>{
   const t=e.target, d=t.dataset; if(!d?.in) return;
@@ -969,6 +983,7 @@ document.addEventListener("change", e=>{
   else if (d.in==="tp"){ const T=UI.T; T[d.k]=t.value; T[d.k+"F"]=[]; T.aOK=T.bOK=false; render(); }
   else if (d.in==="tf"){ const T=UI.T, k=d.k+"F"; T[k]=t.checked?[...T[k],d.id]:T[k].filter(x=>x!==d.id); T.aOK=T.bOK=false; render(); }
   else if (d.in==="tok"){ UI.T[d.k+"OK"]=t.checked; render(); }
+  else if (d.in==="mkt"){ setMarket(d.id, t.value.trim()); UI.editMkt=null; render(); }
   else if (d.in==="vote"){ if(t.value) S.fin.votes[d.id]=t.value; else delete S.fin.votes[d.id]; render(); }
 });
 function refreshTradeBits(){ // sin re-render para no perder el foco al escribir dinero
