@@ -419,7 +419,10 @@ const uid = p => p + (S.seq++);
 const P = id => S.postores.find(p=>p.id===id);
 const F = id => S.fichas[id];
 function log(kind, text){ S.log.push({n:S.log.length+1, t:clock(), venta:S.sales, kind, text}); }
-function valueOf(f){ return isSport() ? (f.mkt||0) : (f.value||0); }
+const hasMarket = () => true; // todas las temáticas tienen precio de mercado (en Libre lo pone la casa)
+function valueOf(f){ return isSport() ? (f.mkt||0) : (f.mkt ?? f.value ?? 0); }
+function parseLine(line){ const m=line.match(/^(.*?)[\s]*[,;\-–]\s*\$?\s*(\d+)\s*$/); return m&&m[1].trim()?{name:m[1].trim(), desc:"", mkt:Number(m[2])}:{name:line, desc:"", mkt:null}; }
+function priceVal(id){ const v=$(id)?.value.trim(); return v?Math.max(0,Math.round(Number(v)))||0:null; }
 
 /* ---------- Render principal ---------- */
 function render(){
@@ -457,9 +460,9 @@ function viewSetup(){
       <div class="pool">${pool.map(f=>`<label><input type="checkbox" data-in="sel" data-id="${f.id}" ${sel.has(f.id)?"checked":""}><span><b>${esc(f.name)}</b> ${f.legend?'<span class="chip brass">Leyenda</span>':""}<small>${esc(f.pos)} · ${esc(f.team)} · ${esc(f.nat)} · ${f.h} m</small><small>${esc(f.tray)}</small></span></label>`).join("")}</div></div>`;
   } else if (S.step===2){
     body = `<div class="panel" style="display:flex;flex-direction:column;gap:14px"><div><div class="eyebrow">Paso 2 · Libre</div><h2 class="display" style="font-size:30px;margin-top:4px">Escribe los personajes</h2><p class="muted" style="margin:6px 0 0;max-width:70ch">Con unos pocos basta para empezar. Durante la partida puedes seguir añadiendo personajes al mercado cuando quieras.</p></div>
-      <div class="row" style="align-items:flex-end"><label style="flex:1 1 200px">Nombre<input id="c-name" placeholder="Ej. Goku" data-keep="no"></label><label style="flex:2 1 260px">Descripción (opcional)<input id="c-desc" placeholder="Ej. Guerrero saiyajin" data-keep="no"></label><button class="primary" data-act="addCustom">Añadir</button></div>
-      <details><summary class="muted" style="cursor:pointer">Pegar varios a la vez (uno por línea)</summary><div class="row" style="margin-top:8px;align-items:flex-end"><textarea id="c-bulk" rows="4" style="flex:1 1 300px" placeholder="Batman&#10;Superman&#10;Mujer Maravilla" data-keep="no"></textarea><button data-act="addBulk">Añadir lista</button></div></details>
-      <div class="custom-list">${S.custom.length?S.custom.map((c,i)=>`<div><span class="mono muted">${i+1}</span><span><b>${esc(c.name)}</b>${c.desc?` <span class="muted">· ${esc(c.desc)}</span>`:""}</span><button class="sm ghost danger" data-act="delCustom" data-i="${i}">Quitar</button></div>`).join(""):`<p class="muted">Todavía no hay personajes. Añade al menos uno.</p>`}</div></div>`;
+      <div class="row" style="align-items:flex-end"><label style="flex:1 1 200px">Nombre<input id="c-name" placeholder="Ej. Goku" data-keep="no"></label><label style="flex:2 1 220px">Descripción (opcional)<input id="c-desc" placeholder="Ej. Guerrero saiyajin" data-keep="no"></label><label style="flex:0 1 150px">Precio de mercado (opcional)<input id="c-price" type="number" min="0" step="1" inputmode="numeric" placeholder="Ej. 150" data-keep="no"></label><button class="primary" data-act="addCustom">Añadir</button></div>
+      <details><summary class="muted" style="cursor:pointer">Pegar varios a la vez (uno por línea; añade «, precio» si quieres)</summary><div class="row" style="margin-top:8px;align-items:flex-end"><textarea id="c-bulk" rows="4" style="flex:1 1 300px" placeholder="Batman, 200&#10;Superman, 250&#10;Mujer Maravilla" data-keep="no"></textarea><button data-act="addBulk">Añadir lista</button></div></details>
+      <div class="custom-list">${S.custom.length?S.custom.map((c,i)=>`<div><span class="mono muted">${i+1}</span><span><b>${esc(c.name)}</b>${c.desc?` <span class="muted">· ${esc(c.desc)}</span>`:""}</span>${c.mkt!=null?`<span class="mono muted" style="flex:none">Mercado ${fmt(c.mkt)}</span>`:""}<button class="sm ghost danger" data-act="delCustom" data-i="${i}">Quitar</button></div>`).join(""):`<p class="muted">Todavía no hay personajes. Añade al menos uno.</p>`}</div></div>`;
   } else if (S.step===3){
     body = `<div class="panel" style="display:flex;flex-direction:column;gap:14px"><div><div class="eyebrow">Paso 3</div><h2 class="display" style="font-size:30px;margin-top:4px">Postores</h2><p class="muted" style="margin:6px 0 0">Cada postor será una fila en la pantalla de la subasta. Mínimo 2.</p></div>
       <div class="plist">${S.postores.map((p,i)=>`<div class="prow-in"><span class="n">${i+1}</span><input id="pn-${p.id}" data-in="pname" data-id="${p.id}" value="${esc(p.name)}" placeholder="Nombre del postor"><button class="sm ghost danger" data-act="delPostor" data-id="${p.id}">Quitar</button></div>`).join("")}</div>
@@ -496,10 +499,10 @@ function viewStage(){
     const f=F(S.sold.fid);
     if (S.sold.none) return `<div class="lotcard"><div class="eyebrow">Sin pujas</div><div class="name">${esc(f.name)}</div><p style="margin:0">Nadie pujó. Vuelve al final del mercado.</p><div><button class="primary big" data-act="continue">${contLabel()}</button></div></div>`;
     const p=P(S.sold.pid); let cmp="";
-    if (isSport()){
+    {
       const ratio=f.mkt?S.sold.amt/f.mkt:1; const v = ratio<0.8?["good","Ganga"]:ratio<=1.2?["","Precio justo"]:["bad","Pagó de más"];
       cmp = `<div class="compare"><div><small class="eyebrow">Precio pagado</small><b>${fmt(S.sold.amt)}</b></div><div><label class="eyebrow" for="mkt-${f.id}">Mercado sugerido</label><div class="mkt-edit"><span class="mono">$</span><input id="mkt-${f.id}" type="number" min="0" step="1" inputmode="numeric" data-in="mkt" data-id="${f.id}" value="${f.mkt??""}" placeholder="Sin precio" data-keep="no"></div></div></div><div>${f.mkt?`<span class="chip ${v[0]}">${v[1]}</span> `:""}<span class="muted" style="font-size:13px">${f.r!=null?`Sugerido según la calidad del jugador y el dinero inicial (${fmt(S.cash0)}). `:""}La casa de subasta puede cambiarlo aquí o tocando el precio en el equipo del postor.</span></div>`;
-    } else cmp = `<div class="compare"><div><small class="eyebrow">Precio pagado</small><b>${fmt(S.sold.amt)}</b></div><div><small class="eyebrow">Venta nº</small><b>${S.sales}</b></div></div>`;
+    }
     return `<div class="lotcard"><div class="sold-banner">¡Vendido!</div><div class="name">${esc(f.name)}</div><p style="margin:0;font-size:18px">para <b>${esc(p.name)}</b></p>${cmp}<div><button class="primary big" data-act="continue">${contLabel()}</button></div></div>`;
   }
   if (S.cur){
@@ -517,8 +520,8 @@ function viewStage(){
     ${S.theme!=="libre"?`<details><summary class="muted" style="cursor:pointer">Añadir una ficha nueva al mercado</summary>${addFields()}</details>`:""}</div>`;
 }
 function addFields(){
-  return `<div class="row" style="margin-top:8px;align-items:flex-end"><label style="flex:1 1 160px">Nombre<input id="n-name" placeholder="${S.theme==="libre"?"Ej. Goku":""}"></label><label style="flex:1 1 160px">Descripción (opcional)<input id="n-desc"></label><button class="primary" data-act="addMarket">Añadir</button></div>
-    <details id="bulkBox" style="margin-top:8px" ${UI.bulkOpen?"open":""}><summary class="muted" style="cursor:pointer">Pegar varios a la vez (uno por línea)</summary><div class="row" style="margin-top:8px;align-items:flex-end"><textarea id="n-bulk" rows="3" style="flex:1 1 220px" placeholder="Batman&#10;Superman"></textarea><button data-act="addMarketBulk">Añadir lista</button></div></details>
+  return `<div class="row" style="margin-top:8px;align-items:flex-end"><label style="flex:1 1 160px">Nombre<input id="n-name" placeholder="${S.theme==="libre"?"Ej. Goku":""}"></label><label style="flex:1 1 160px">Descripción (opcional)<input id="n-desc"></label><label style="flex:0 1 130px">Precio de mercado<input id="n-price" type="number" min="0" step="1" inputmode="numeric" placeholder="Opcional"></label><button class="primary" data-act="addMarket">Añadir</button></div>
+    <details id="bulkBox" style="margin-top:8px" ${UI.bulkOpen?"open":""}><summary class="muted" style="cursor:pointer">Pegar varios a la vez (uno por línea; añade «, precio» si quieres)</summary><div class="row" style="margin-top:8px;align-items:flex-end"><textarea id="n-bulk" rows="3" style="flex:1 1 220px" placeholder="Batman, 200&#10;Superman"></textarea><button data-act="addMarketBulk">Añadir lista</button></div></details>
     <span class="muted" id="addMsg" style="font-size:13px">${esc(UI.addMsg||"")}</span>`;
 }
 function addBox(){
@@ -529,7 +532,7 @@ function teamList(p){
   if (!p.fichas.length) return `<p class="empty-team" style="margin:0">Sin fichas todavía</p>`;
   return `<ul class="team">${p.fichas.map(id=>{const f=F(id);
     const paid = f.acq==="compra"?fmt(f.paid):f.acq==="robo"?"robado":"intercambio";
-    return `<li><span class="t-name">${esc(f.name)}${f.pos?`<small>${esc(f.pos)}</small>`:""}</span><span class="t-val"><em>Pagó</em>${paid}</span>${isSport()?`<span class="t-val"><em>Mercado</em>${UI.editMkt===f.id?`<input class="mkt-inline" id="mkt-${f.id}" type="number" min="0" step="1" inputmode="numeric" data-in="mkt" data-id="${f.id}" value="${f.mkt??""}" data-keep="no" aria-label="Precio de mercado de ${esc(f.name)}">`:`<button class="mkt-btn" data-act="editMkt" data-id="${f.id}" title="Cambiar precio de mercado">${f.mkt!=null?fmt(f.mkt):"—"}</button>`}</span>`:""}</li>`}).join("")}</ul>`;
+    return `<li><span class="t-name">${esc(f.name)}${f.pos?`<small>${esc(f.pos)}</small>`:""}</span><span class="t-val"><em>Pagó</em>${paid}</span>${hasMarket()?`<span class="t-val"><em>Mercado</em>${UI.editMkt===f.id?`<input class="mkt-inline" id="mkt-${f.id}" type="number" min="0" step="1" inputmode="numeric" data-in="mkt" data-id="${f.id}" value="${f.mkt??""}" data-keep="no" aria-label="Precio de mercado de ${esc(f.name)}">`:`<button class="mkt-btn" data-act="editMkt" data-id="${f.id}" title="Cambiar precio de mercado">${f.mkt!=null?fmt(f.mkt):"—"}</button>`}</span>`:""}</li>`}).join("")}</ul>`;
 }
 function viewPostor(p){
   const open = S.cur?.open && !S.cur.paused; const hb=S.cur?.bids[S.cur.bids.length-1];
@@ -537,7 +540,7 @@ function viewPostor(p){
   const tv = p.fichas.reduce((s,id)=>s+valueOf(F(id)),0);
   return `<article class="prow ${lead?"lead":""}" id="row-${p.id}"><div class="phead"><span class="pname">${esc(p.name)}</span><span class="pcash">${fmt(p.cash)}</span>${lead?'<span class="chip brass">Va ganando</span>':""}
     <div class="bidbox"><input id="bid-${p.id}" type="number" min="1" step="1" inputmode="numeric" placeholder="Cantidad" data-keep="${open?"":"no"}" ${open?"":"disabled"} data-enter="bid" data-id="${p.id}"><button class="primary" data-act="bid" data-id="${p.id}" ${open?"":"disabled"}>Pujar</button></div></div>
-    ${teamList(p)}<div class="pfoot"><span>${p.fichas.length} ${p.fichas.length===1?"ficha":"fichas"}</span><span>${isSport()?"Valor de mercado":"Valor pagado"} del equipo: <b class="mono">${fmt(tv)}</b></span><span>Capital: <b class="mono">${fmt(tv+p.cash)}</b></span></div></article>`;
+    ${teamList(p)}<div class="pfoot"><span>${p.fichas.length} ${p.fichas.length===1?"ficha":"fichas"}</span><span>Valor de mercado del equipo: <b class="mono">${fmt(tv)}</b></span><span>Capital: <b class="mono">${fmt(tv+p.cash)}</b></span></div></article>`;
 }
 
 /* ---------- Subasta ---------- */
@@ -707,7 +710,7 @@ function viewBreak(){
   const opts = sel => S.postores.map(p=>`<option value="${p.id}" ${p.id===sel?"selected":""}>${esc(p.name)}</option>`).join("");
   const side = (key,P0,fs,m,ok) => `<div class="side"><label>Postor<select id="t-${key}" data-in="tp" data-k="${key}">${opts(P0.id)}</select></label>
     <div class="muted" style="font-size:13px">Efectivo: <b class="mono">${fmt(P0.cash)}</b></div>
-    <div><div class="eyebrow">Entrega fichas</div><div class="checks">${P0.fichas.length?P0.fichas.map(id=>`<label><input type="checkbox" data-in="tf" data-k="${key}" data-id="${id}" ${fs.includes(id)?"checked":""}>${esc(F(id).name)}${isSport()?` <span class="muted mono" style="font-size:12px">${fmt(F(id).mkt)}</span>`:""}</label>`).join(""):`<span class="muted" style="font-size:13px">Sin fichas</span>`}</div></div>
+    <div><div class="eyebrow">Entrega fichas</div><div class="checks">${P0.fichas.length?P0.fichas.map(id=>`<label><input type="checkbox" data-in="tf" data-k="${key}" data-id="${id}" ${fs.includes(id)?"checked":""}>${esc(F(id).name)}${hasMarket()?` <span class="muted mono" style="font-size:12px">${F(id).mkt!=null?fmt(F(id).mkt):"—"}</span>`:""}</label>`).join(""):`<span class="muted" style="font-size:13px">Sin fichas</span>`}</div></div>
     <label>Entrega dinero<input id="t-${key}M" type="number" min="0" step="1" data-in="tm" data-keep="no" data-k="${key}" value="${m||""}" placeholder="0"></label>
     <label class="confirm"><input type="checkbox" data-in="tok" data-k="${key}" ${ok?"checked":""}> ${esc(P0.name)} confirma</label></div>`;
   const err = tradeError(T);
@@ -762,7 +765,7 @@ function viewFinal(){
     ${allVoted?`<div class="winner">${top(voteR)}</div><table><tbody>${voteR.map(x=>`<tr><td class="n">${x.rank}º</td><td>${esc(P(x.id).name)}</td><td class="n">${x.val} ${x.val===1?"voto":"votos"}</td></tr>`).join("")}</tbody></table>`:`<p class="muted" style="margin:0">Faltan ${vs.filter(v=>!fin.votes[v.id]).length} votos.</p>`}</div>`;
 
   const capBox = `<div class="panel cat"><div class="eyebrow">Categoría ${isSport()?3:2}</div><h2 class="display" style="font-size:28px">Mayor capital</h2>
-    <p class="muted" style="margin:0;font-size:13px">${isSport()?"Valor de mercado de sus fichas + efectivo final.":"Precio pagado en subasta por sus fichas + efectivo final (en Libre no hay precio de mercado)."}</p>
+    <p class="muted" style="margin:0;font-size:13px">${isSport()?"Valor de mercado de sus fichas + efectivo final.":"Precio de mercado de sus fichas (o lo que pagó, si la casa no le puso precio) + efectivo final."}</p>
     <div class="winner">${top(capR)}</div><table><tbody>${capR.map(x=>{const p=P(x.id);return `<tr><td class="n">${x.rank}º</td><td>${esc(p.name)}</td><td class="n">${fmt(x.val)}<br><span class="muted" style="font-size:11px">${fmt(p.cash)} efectivo</span></td></tr>`}).join("")}</tbody></table></div>`;
 
   let aiBox="";
@@ -888,7 +891,7 @@ function autoAI(){
 
 /* ---------- Acciones ---------- */
 function addToMarket(list){
-  list.forEach(c=>{ const id=uid("x"); S.fichas[id]={id, name:c.name, desc:c.desc, r:null, mkt:null, owner:null}; S.market.push(id); });
+  list.forEach(c=>{ const id=uid("x"); S.fichas[id]={id, name:c.name, desc:c.desc, r:null, mkt:c.mkt??null, owner:null}; S.market.push(id); });
   log("Mercado", list.length===1?`La casa añade a ${list[0].name} al mercado.`:`La casa añade ${list.length} fichas al mercado: ${list.map(c=>c.name).join(", ")}.`);
   UI.addMsg = list.length===1?`Añadido: ${list[0].name}.`:`Añadidos ${list.length} personajes.`;
 }
@@ -903,8 +906,8 @@ const ACT = {
   selCur:()=>{ S.selected=poolFor(S.theme).filter(f=>!f.legend).map(f=>f.id); render(); },
   selLeg:()=>{ S.selected=poolFor(S.theme).filter(f=>f.legend).map(f=>f.id); render(); },
   selNone:()=>{ S.selected=[]; render(); },
-  addCustom:()=>{ const n=$("#c-name").value.trim(), d=$("#c-desc").value.trim(); if(!n){ UI.err="Escribe el nombre del personaje."; render(); return; } S.custom.push({name:n, desc:d}); UI.err=""; render(); $("#c-name").focus(); },
-  addBulk:()=>{ $("#c-bulk").value.split("\n").map(s=>s.trim()).filter(Boolean).forEach(n=>S.custom.push({name:n, desc:""})); render(); },
+  addCustom:()=>{ const n=$("#c-name").value.trim(), d=$("#c-desc").value.trim(); if(!n){ UI.err="Escribe el nombre del personaje."; render(); return; } S.custom.push({name:n, desc:d, mkt:priceVal("#c-price")}); UI.err=""; render(); $("#c-name").focus(); },
+  addBulk:()=>{ $("#c-bulk").value.split("\n").map(s=>s.trim()).filter(Boolean).forEach(n=>S.custom.push(parseLine(n))); render(); },
   delCustom:d=>{ S.custom.splice(+d.i,1); render(); },
   addPostor:()=>{ const p={id:uid("p"), name:"", cash:0, fichas:[]}; S.postores.push(p); render(); $("#pn-"+p.id)?.focus(); },
   delPostor:d=>{ S.postores=S.postores.filter(p=>p.id!==d.id); render(); },
@@ -920,8 +923,8 @@ const ACT = {
   hammer:()=>closeAuction(),
   cancelAuction:()=>{ S.market.unshift(S.cur.fid); log("Cancelada", `Se canceló la subasta de ${F(S.cur.fid).name}; vuelve al mercado.`); S.cur=null; render(); },
   continue:continueFlow,
-  addMarket:()=>{ const nm=$("#n-name"), ds=$("#n-desc"); const n=nm.value.trim(); if(!n){ nm.focus(); return; } addToMarket([{name:n, desc:ds.value.trim()}]); nm.value=""; ds.value=""; render(); $("#n-name")?.focus(); },
-  addMarketBulk:()=>{ const b=$("#n-bulk"); const list=b.value.split("\n").map(x=>x.trim()).filter(Boolean).map(name=>({name, desc:""})); if(!list.length) return; addToMarket(list); b.value=""; render(); },
+  addMarket:()=>{ const nm=$("#n-name"), ds=$("#n-desc"); const n=nm.value.trim(); if(!n){ nm.focus(); return; } addToMarket([{name:n, desc:ds.value.trim(), mkt:priceVal("#n-price")}]); nm.value=""; ds.value=""; if($("#n-price")) $("#n-price").value=""; render(); $("#n-name")?.focus(); },
+  addMarketBulk:()=>{ const b=$("#n-bulk"); const list=b.value.split("\n").map(x=>x.trim()).filter(Boolean).map(parseLine); if(!list.length) return; addToMarket(list); b.value=""; render(); },
   spin, nextSpinner,
   execTrade, brkPause:()=>{ const b=S.brk; if(b.paused){ b.paused=false; b.deadline=now()+b.remaining; } else { b.remaining=Math.max(0,b.deadline-now()); b.paused=true; } render(); },
   endBreak:()=>{ S.brk=null; UI.T=null; finishEvent(); },
@@ -951,7 +954,7 @@ function validateStep(){
 function startGame(){
   S.bidSecs=Math.max(2,S.bidSecs||5); S.firstSecs=Math.max(3,S.firstSecs||10); S.breakSecs=Math.max(30,S.breakSecs||120);
   S.fichas={};
-  if (S.theme==="libre") S.custom.forEach(c=>{ const id=uid("c"); S.fichas[id]={id, name:c.name, desc:c.desc, r:null, mkt:null, owner:null}; });
+  if (S.theme==="libre") S.custom.forEach(c=>{ const id=uid("c"); S.fichas[id]={id, name:c.name, desc:c.desc, r:null, mkt:c.mkt??null, owner:null}; });
   else { const sel=new Set(S.selected); poolFor(S.theme).filter(f=>sel.has(f.id)).forEach(f=>{ S.fichas[f.id]={...f, mkt:marketPrice(f.r,S.cash0), owner:null}; }); }
   S.postores.forEach(p=>{ p.cash=S.cash0; p.fichas=[]; });
   S.market=shuffle(Object.keys(S.fichas)); S.phase="game"; S.log=[];
@@ -965,8 +968,8 @@ document.addEventListener("keydown", e=>{
   if (t.dataset?.in==="mkt"){ if(e.key==="Enter"){ e.preventDefault(); t.blur(); } else if(e.key==="Escape"){ UI.editMkt=null; render(); } return; }
   if (e.key!=="Enter") return;
   if (t.dataset?.enter==="bid"){ e.preventDefault(); placeBid(t.dataset.id); }
-  else if (t.id==="c-name"||t.id==="c-desc"){ e.preventDefault(); ACT.addCustom(); }
-  else if (t.id==="n-name"||t.id==="n-desc"){ e.preventDefault(); ACT.addMarket(); }
+  else if (t.id==="c-name"||t.id==="c-desc"||t.id==="c-price"){ e.preventDefault(); ACT.addCustom(); }
+  else if (t.id==="n-name"||t.id==="n-desc"||t.id==="n-price"){ e.preventDefault(); ACT.addMarket(); }
   else if (t.dataset?.in==="pname"){ e.preventDefault(); ACT.addPostor(); }
 });
 document.addEventListener("focusout", e=>{ if(e.target.classList?.contains("mkt-inline")) setTimeout(()=>{ if(UI.editMkt===e.target.dataset.id && !document.activeElement?.classList.contains("mkt-inline")){ UI.editMkt=null; render(); } },0); });
