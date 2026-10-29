@@ -763,7 +763,7 @@ function viewFinal(){
   let aiBox="";
   if (isSport()){
     aiBox = `<div class="panel cat"><div class="eyebrow">Categoría 2</div><h2 class="display" style="font-size:28px">Ranking del analista</h2>
-      ${fin.ai?`<div class="winner">${top(aiR)}</div>${fin.ai.auto?`<span class="chip">Ranking automático por calidad</span>`:""}<div>${[...fin.ai.ranking].sort((a,b)=>a.puesto-b.puesto).map(r=>`<div class="ai-item"><b>${r.puesto}º</b> <strong>${esc(P(r.id).name)}</strong> <span class="chip">${r.nota}/10</span><div class="muted" style="font-size:14px;margin-top:4px">${esc(r.comentario)}</div></div>`).join("")}</div>${fin.ai.resumen?`<p style="margin:0">${esc(fin.ai.resumen)}</p>`:""}<div><button class="sm ghost" data-act="askAI">Pedir otra opinión</button></div>`
+      ${fin.ai?`<div class="winner">${top(aiR)}</div>${fin.ai.auto?`<span class="chip">Según la calidad, posiciones y banca de cada equipo</span>`:""}<div>${[...fin.ai.ranking].sort((a,b)=>a.puesto-b.puesto).map(r=>`<div class="ai-item"><b>${r.puesto}º</b> <strong>${esc(P(r.id).name)}</strong> <span class="chip">${r.nota}/10</span><div class="muted" style="font-size:14px;margin-top:4px">${esc(r.comentario)}</div></div>`).join("")}</div>${fin.ai.resumen?`<p style="margin:0">${esc(fin.ai.resumen)}</p>`:""}${fin.ai.auto?"":`<div><button class="sm ghost" data-act="askAI">Pedir otra opinión</button></div>`}`
       :`<p class="muted" style="margin:0;font-size:13px">El analista evalúa cada equipo: calidad, equilibrio por posiciones y si alcanza para un ${THEMES[S.theme].unit}.</p>
         <div class="row"><button class="brass" data-act="askAI" ${fin.aiBusy?"disabled":""}>${fin.aiBusy?"El analista está evaluando los equipos…":"Pedir ranking al analista"}</button></div>
         ${fin.aiErr?`<p class="err" style="margin:0">${esc(fin.aiErr)}</p><div><button class="sm" data-act="autoAI">Usar ranking automático</button></div>`:""}`}</div>`;
@@ -798,16 +798,12 @@ Responde SOLO con JSON con esta forma exacta (todos los postores, puestos 1..N s
 async function askAI(){
   const fin=S.fin; fin.aiBusy=true; fin.aiErr=""; render();
   try{
+    if (!window.claude?.use){ fin.aiBusy=false; autoAI(); return; }
     const payload=rankingPayload(); let data;
-    if (window.claude?.use){
+    {
       const sample = await claude.use("sample");
       if (!sample) throw {code:"unavailable"};
       data = await sample.json(rankingPrompt(payload), {modelTier:"default"});
-    } else {
-      const r = await fetch("/api/ranking", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)}).catch(()=>null);
-      if (!r) throw {code:"network"};
-      data = await r.json().catch(()=>null);
-      if (!r.ok) throw {code:data?.code||"server"};
     }
     const list = Array.isArray(data?.ranking) ? data.ranking : [];
     if (!list.length) throw {code:"invalid_json"};
@@ -819,14 +815,69 @@ async function askAI(){
   }
   fin.aiBusy=false; render();
 }
+/* ---------- Analista automático: arma el mejor titular posible y evalúa titulares, banca y estrellas ---------- */
+const FORMATIONS = {"4-3-3":{POR:1,DEF:4,MED:3,DEL:3}, "4-4-2":{POR:1,DEF:4,MED:4,DEL:2}, "3-5-2":{POR:1,DEF:3,MED:5,DEL:2}, "4-2-4":{POR:1,DEF:4,MED:2,DEL:4}};
+const NBA_POS = ["Base","Escolta","Alero","Ala-pívot","Pívot"];
+const LINE_NAMES = {POR:"la portería", DEF:"la defensa", MED:"el medio campo", DEL:"el ataque", Base:"la dirección", Escolta:"el perímetro", Alero:"las alas", "Ala-pívot":"el juego interior", "Pívot":"la pintura"};
+const MISSING = {POR:"no tiene portero de verdad", DEF:"le faltan defensas", MED:"le faltan mediocampistas", DEL:"le faltan delanteros", Base:"no tiene base que organice", Escolta:"le falta un escolta", Alero:"le falta un alero", "Ala-pívot":"le falta un ala-pívot", "Pívot":"no tiene pívot"};
+function outOfPosPenalty(from, to){
+  if (S.theme==="futbol"){
+    if (from===to) return 0;
+    if (to==="POR" || from==="POR") return 30;
+    return Math.abs(["DEF","MED","DEL"].indexOf(from)-["DEF","MED","DEL"].indexOf(to))===1 ? 7 : 14;
+  }
+  const d=Math.abs(NBA_POS.indexOf(from)-NBA_POS.indexOf(to)); return [0,4,10,16,20][d] ?? 20;
+}
+function buildLineup(players, slots){
+  const pool=[...players].sort((a,b)=>b.r-a.r); const filled=[]; const need={...slots};
+  for (const f of [...pool]) if (need[f.pos]>0){ need[f.pos]--; filled.push({f, slot:f.pos, val:f.r}); pool.splice(pool.indexOf(f),1); }
+  const holes=[];
+  for (const slot in need) for (let i=0;i<need[slot];i++){
+    let best=null; pool.forEach(f=>{ const v=f.r-outOfPosPenalty(f.pos,slot); if(!best || v>best.v) best={f,v}; });
+    if (best && best.v>50){ filled.push({f:best.f, slot, val:best.v, out:true}); pool.splice(pool.indexOf(best.f),1); }
+    else { filled.push({f:null, slot, val:45}); holes.push(slot); }
+  }
+  return {filled, bench:pool, holes, total:filled.reduce((s,x)=>s+x.val,0)};
+}
+function analyze(p){
+  const players=p.fichas.map(F).map(f=>({...f, r:f.r??70, pos:f.pos||(S.theme==="futbol"?"MED":"Alero")}));
+  let best=null, form=null;
+  if (S.theme==="futbol") for (const [k,sl] of Object.entries(FORMATIONS)){ const l=buildLineup(players, sl); if(!best || l.total>best.total){ best=l; form=k; } }
+  else best=buildLineup(players, Object.fromEntries(NBA_POS.map(x=>[x,1])));
+  const starters=best.filled.length; const startAvg=best.total/starters;
+  const benchN=S.theme==="futbol"?5:5; const bench=best.bench.slice(0,benchN);
+  const benchAvg=(bench.reduce((s,f)=>s+f.r,0)+(benchN-bench.length)*55)/benchN;
+  const top3=[...players].sort((a,b)=>b.r-a.r).slice(0,3); const starAvg=(top3.reduce((s,f)=>s+f.r,0)+(3-top3.length)*50)/3;
+  const score=0.68*startAvg+0.14*benchAvg+0.18*starAvg;
+  // líneas
+  const lines={}; best.filled.forEach(x=>{ const k=x.slot; (lines[k]=lines[k]||[]).push(x.val); });
+  const lineAvg=Object.entries(lines).map(([k,v])=>({k, avg:v.reduce((a,b)=>a+b,0)/v.length}));
+  const strong=[...lineAvg].sort((a,b)=>b.avg-a.avg)[0]; const weak=[...lineAvg].sort((a,b)=>a.avg-b.avg)[0];
+  return {id:p.id, p, players, score, nota:Math.max(0,Math.min(10,Math.round((score-55)/40*100)/10)), form, best, bench, benchAvg, strong, weak, star:top3[0], legends:players.filter(f=>f.legend).length, outs:best.filled.filter(x=>x.out).length};
+}
+function commentFor(a, puesto, n){
+  const unit=THEMES[S.theme].unit;
+  if (!a.players.length) return "No compró jugadores, así que no puede competir.";
+  const parts=[];
+  const lead = puesto===1 ? "Es el equipo más completo" : puesto===n ? "Es el equipo con más carencias" : "Es un equipo competitivo";
+  const formTxt = a.form ? ` en ${a.form}` : "";
+  parts.push(`${lead}${formTxt}: ${a.star.name} es su gran figura y su punto fuerte es ${LINE_NAMES[a.strong.k]}${a.legends?` (con ${a.legends} ${a.legends===1?"leyenda":"leyendas"})`:""}.`);
+  if (a.best.holes.length){ const uniq=[...new Set(a.best.holes)]; parts.push(`Su gran problema es que ${uniq.map(h=>MISSING[h]).join(" y ")}, así que no completa el ${unit}.`); }
+  else if (a.outs) parts.push(`Completa el ${unit}, pero ${a.outs===1?"un jugador juega":`${a.outs} jugadores juegan`} fuera de su posición y se nota en ${LINE_NAMES[a.weak.k]}.`);
+  else if (a.bench.length<3) parts.push(`Tiene buen ${unit}, pero la banca es muy corta si hay lesiones.`);
+  else parts.push(a.weak.k!==a.strong.k?`Lo más flojo está en ${LINE_NAMES[a.weak.k]}, aunque tiene banca para rotar.`:`Además tiene banca de calidad para rotar.`);
+  return parts.join(" ");
+}
 function autoAI(){
-  const pos = S.theme==="futbol"?{POR:1,DEF:4,MED:3,DEL:3}:{Base:1,Escolta:1,Alero:1,"Ala-pívot":1,"Pívot":1};
-  const scored = S.postores.map(p=>{ const fs=p.fichas.map(F).sort((a,b)=>b.r-a.r); const need={...pos}; let start=[];
-    fs.forEach(f=>{ if(need[f.pos]>0){ need[f.pos]--; start.push(f); } });
-    const size=Object.values(pos).reduce((a,b)=>a+b,0); const avg = start.length? start.reduce((s,f)=>s+f.r,0)/size : 0;
-    return {id:p.id, score:avg, filled:start.length, size}; });
-  const r=rankList(scored.map(s=>({id:s.id, val:s.score})));
-  S.fin.ai={auto:true, resumen:"", ranking:r.map((x,i)=>{const s=scored.find(y=>y.id===x.id); return {id:x.id, puesto:i+1, nota:Math.round(s.score/10*10)/10, comentario:`Titulares cubiertos: ${s.filled} de ${s.size}. Media del ${THEMES[S.theme].unit}: ${s.score.toFixed(1)}.`};})};
+  const an=S.postores.map(analyze);
+  const r=rankList(an.map(a=>({id:a.id, val:a.score}))); const n=an.length;
+  const ranking=r.map((x,i)=>{ const a=an.find(y=>y.id===x.id); return {id:x.id, puesto:i+1, nota:a.nota, comentario:commentFor(a,i+1,n)}; });
+  const first=an.find(a=>a.id===ranking[0].id), second=an.find(a=>a.id===ranking[1]?.id);
+  const gap=second?first.score-second.score:0;
+  const resumen = !first.players.length ? "Nadie armó un equipo competitivo." :
+    `${first.p.name} gana ${gap<1.5?"por muy poco":gap<4?"con claridad":"con mucha ventaja"} gracias a ${first.best.holes.length?"sus estrellas":`un ${THEMES[S.theme].unit} más sólido`}${second?`; ${second.p.name} queda segundo`:""}.`;
+  S.fin.ai={auto:true, ranking, resumen};
+  log("Ranking", `El analista ordena los equipos: ${ranking.map(x=>`${x.puesto}º ${P(x.id).name}`).join(", ")}.`);
   S.fin.aiErr=""; render();
 }
 
